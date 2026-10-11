@@ -24,9 +24,16 @@ export const dashboard = {
 
 	figures: {
 		collected: 'المحصل',
+		expected: 'المتوقع',
 		occupiedUnits: 'الوحدات المشغولة',
 		outstanding: 'المستحق',
 		returned: 'المُعاد'
+	},
+
+	nothingPermitted: {
+		description:
+			'تعرض هذه الشاشة العقود والمدفوعات والوحدات. يمكن لمن يعدّل صلاحياتك أن يمنحك عرضها.',
+		title: 'ليست لديك صلاحية لعرض شيء هنا.'
 	},
 
 	sections: {

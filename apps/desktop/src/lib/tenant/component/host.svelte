@@ -124,7 +124,7 @@
 	 * menu's own projection gives for it.
 	 */
 	async function answerAsked(actId: string, tenantId: string) {
-		let tenant: TenantActRecord | undefined;
+		let tenant: TenantActRecord | null;
 
 		try {
 			tenant = await readTenant(tenantId);

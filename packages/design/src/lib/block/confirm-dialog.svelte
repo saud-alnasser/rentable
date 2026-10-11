@@ -24,6 +24,9 @@
 	 * throws is shown inside the dialog so the reader is still at the question when they read it.
 	 * The confirming control's weight is the act's tone: `error` for an act that takes something
 	 * away, `neutral` for one that gives something back.
+	 *
+	 * Leaving says *cancel* unless the caller names it. The form surface does, asking before a form
+	 * with changes closes, where leaving the question is going back to the form: *keep editing*.
 	 */
 	let {
 		open,
@@ -34,7 +37,8 @@
 		confirmLoadingLabel,
 		record,
 		description,
-		tone = 'error'
+		tone = 'error',
+		cancelLabel
 	}: {
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
@@ -51,6 +55,8 @@
 		description?: string;
 		/** how loud the confirming control is: `error` takes something away, `neutral` does not. */
 		tone?: 'neutral' | 'error';
+		/** the word on the control that leaves the question, where *cancel* does not say it. */
+		cancelLabel?: string;
 	} = $props();
 
 	// what the dialog asks about, kept while it closes, as the delete dialog keeps it.
@@ -101,7 +107,7 @@
 				onclick={() => onOpenChange(false)}
 				class="w-full sm:w-auto"
 			>
-				{contract.strings.cancel}
+				{cancelLabel ?? contract.strings.cancel}
 			</Button>
 
 			<Button

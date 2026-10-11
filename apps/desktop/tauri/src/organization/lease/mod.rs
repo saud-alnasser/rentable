@@ -3534,12 +3534,12 @@ mod tests {
     }
 
     /// **Ticket 40's third criterion, on the shipped ladder** (effort 857, requirements 1 and 7).
-    /// Every workspace 0.20 left is at 7, with `0007`, which a reader does not need, and `0008`,
-    /// which adds the columns every read names, both pending. A member with a read-only grant
-    /// cannot run either, so opening it refuses them as `WorkspaceBehind`, the reason the
-    /// workspace-held screen says, with a sentence saying it waits for somebody with full access to
-    /// open it on the new version; reaching it over Turso refuses the same; and nothing is sent to
-    /// the workspace or written to the organization.
+    /// Every workspace 0.20 left is at 7, with `0007`, which a reader does not need, and `0008` and
+    /// `0009` (effort 861, ticket 09), which add columns every read names, all pending. A member
+    /// with a read-only grant cannot run any of them, so opening it refuses them as
+    /// `WorkspaceBehind`, the reason the workspace-held screen says, with a sentence saying it
+    /// waits for somebody with full access to open it on the new version; reaching it over Turso
+    /// refuses the same; and nothing is sent to the workspace or written to the organization.
     #[tokio::test]
     async fn a_reader_on_the_shipped_ladder_waits_for_full_access_on_the_new_version() {
         use crate::organization::workspace::remote::reach;
@@ -3559,9 +3559,10 @@ mod tests {
             .map(|number| apply::SHIPPED.files[number as usize - 1].0)
             .collect();
 
-        assert_eq!(pending.len(), 2, "{pending:?}");
+        assert_eq!(pending.len(), 3, "{pending:?}");
         assert!(pending[0].starts_with("0007_"), "{pending:?}");
         assert!(pending[1].starts_with("0008_"), "{pending:?}");
+        assert!(pending[2].starts_with("0009_"), "{pending:?}");
 
         let (facts, held) = facts_of(&store, &member, &workspace_id).await;
         let requests = pipeline.request_count();

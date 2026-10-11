@@ -2,6 +2,7 @@
 	import type { ContractSection } from '$lib/contract/section';
 	import type { Section } from '$lib/feature/surface';
 	import { resolve } from '$app/paths';
+	import { toReadFailure } from '$lib/error/read';
 	import type { Contract } from '$lib/platform/database/schema';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
@@ -39,6 +40,9 @@
 
 	const contractQuery = useFetchContract(() => contractId);
 	const contract = $derived(contractQuery.data);
+	// whether the read behind the page failed, as `$lib/error/read` decides it, and what runs it
+	// again: the surface draws the failed state in place of *not found* while it did.
+	const contractRead = $derived(toReadFailure(contractQuery));
 	const tenantQuery = useFetchTenant(() => ({
 		id: contract?.tenantId,
 		enabled: Boolean(contract?.tenantId)
@@ -154,6 +158,9 @@
 
 <RecordSurface
 	isLoading={contractQuery.isLoading}
+	failed={contractRead.failed}
+	onRetry={contractRead.retry}
+	retrying={contractRead.retrying}
 	found={Boolean(contract)}
 	backFallback={resolve('/contracts')}
 	path={resolve(`/contracts/${contractId}`)}

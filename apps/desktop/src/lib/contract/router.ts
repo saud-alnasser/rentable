@@ -23,9 +23,13 @@ import {
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
 import {
 	contractsHoldingGovId,
+	isContractRenewed,
+	renewedColumn,
 	selectAssignmentsForUnits,
-	selectPaymentsForContract
+	selectPaymentsForContract,
+	selectRenewalNeighbours
 } from '$lib/contract/row';
+import { ensureNotRenewed, ensureRenewalFollowsPredecessor } from '$lib/contract/renewal/renewal';
 import { serializeContract, withRank } from '$lib/contract/serialize';
 import { referencesOf } from '$lib/contract/transfer';
 import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
@@ -39,14 +43,16 @@ import schedule from './schedule/router';
 import selection from './selection/router';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
-// caller may supply them.
+// caller may supply them. The contract a renewal continues is written by the renewal alone, so
+// creating, duplicating and editing a contract can never name one (effort 861, requirement 5).
 // an optional id, so undoing a deletion can put the row back with the identity it had — a page
 // still open on that record is holding a reference to it (ADR 0026). Absent otherwise, and the
 // engine assigns one.
 const ContractFieldsSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
-	expectedAmount: true
+	expectedAmount: true,
+	renewsContractId: true
 }).partial({ id: true });
 // a new contract with the units it is created holding, which the form chooses alongside the
 // tenant (effort 832, requirement 20). Empty by default: a contract may start holding none and
@@ -57,7 +63,8 @@ const ContractCreateSchema = ContractFieldsSchema.extend({
 const ContractUpdateSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
-	expectedAmount: true
+	expectedAmount: true,
+	renewsContractId: true
 });
 
 /**
@@ -223,6 +230,21 @@ export default router({
 			);
 
 			if (hasDateRangeChanged) {
+				// the renewal's own rule, held from both sides of the link: an edit may not start a
+				// renewal on or before the end of what it renews, nor end a renewed contract on or after
+				// a standing successor starts. Stated apart from the overlap below for the reason
+				// renewing states it: a pair holding no units would pass that, and the link would be
+				// one an export and import cannot carry (effort 861, requirement 5, ticket 23).
+				const { predecessor, successors } = await selectRenewalNeighbours(ctx.db, existingContract);
+
+				if (predecessor) {
+					ensureRenewalFollowsPredecessor(predecessor.end, input.start);
+				}
+
+				for (const successor of successors) {
+					ensureRenewalFollowsPredecessor(input.end, successor.start);
+				}
+
 				const assignedUnits = await ctx.db
 					.select({ unitId: s.contractUnit.unitId })
 					.from(s.contractUnit)
@@ -328,6 +350,18 @@ export default router({
 
 			ensureContractUnterminable(existingContract.status);
 
+			// restoring a renewal makes it stand again, so it is held to the rules renewing is: it
+			// starts after what it renews ends, and that contract is not renewed by another meanwhile
+			// (effort 861, requirement 5, ticket 23).
+			if (existingContract.renewsContractId !== null) {
+				const { predecessor } = await selectRenewalNeighbours(ctx.db, existingContract);
+
+				if (predecessor) {
+					ensureRenewalFollowsPredecessor(predecessor.end, existingContract.start);
+					ensureNotRenewed(await isContractRenewed(ctx.db, existingContract.renewsContractId));
+				}
+			}
+
 			// restoring makes the contract live again, so a unit another contract took while it was
 			// terminated refuses it, named the way the reader knows a unit.
 			const held = await ctx.db
@@ -410,12 +444,12 @@ export default router({
 
 	...directory._def.record,
 
-	// one contract, with the rank it is filed under today, so the record page's acts gate on it
-	// as a card's do, and the reference a workspace file calls it by, so what its page exports
-	// names it as the import reads it back, where that reference shows the reader nothing they may
-	// not see. Its tenant's name comes with it for a reader who may
-	// see tenants, as every other read of a contract gives it, so the ledger the page exports
-	// names its tenant (effort 854, requirement 30).
+	// one contract, with the rank it is filed under today and whether it is renewed, so the record
+	// page's acts gate on them as a card's do, and the reference a workspace file calls it by, so
+	// what its page exports names it as the import reads it back, where that reference shows the
+	// reader nothing they may not see. Its tenant's name comes with it for a reader who may see
+	// tenants, as every other read of a contract gives it, so the ledger the page exports names its
+	// tenant (effort 854, requirement 30).
 	get: procedure
 		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
@@ -431,7 +465,7 @@ export default router({
 			}
 
 			const row = await ctx.db
-				.select({ contract: s.contract, tenantName: s.tenant.name })
+				.select({ contract: s.contract, tenantName: s.tenant.name, renewed: renewedColumn })
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
 				.where(matching)
@@ -441,12 +475,12 @@ export default router({
 				return undefined;
 			}
 
-			const { contract, tenantName } = row;
+			const { contract, tenantName, renewed } = row;
 			const { endingSoonNoticeDays } = await ctx.host.settings.get();
 			const seesTenants = permits(ctx.identity.permissions, 'viewTenant');
 			const named = seesTenants ? tenantName : undefined;
 			const read = withRank(
-				serializeContract(contract, named),
+				{ ...serializeContract(contract, named), renewed },
 				ctx.clock.now(),
 				endingSoonNoticeDays
 			);
@@ -467,14 +501,15 @@ export default router({
 	units: assignment,
 
 	/**
-	 * Recompute every contract's and unit's status and the payment aggregates, for the triggers
-	 * that have no touch-set: startup, a UTC-day crossing while the app runs, and a remote-sync
-	 * pull. *It was `app.state.reconcile` until effort 840 flattened the router tree.*
+	 * Recompute every contract's and unit's status and the payment aggregates, and link the
+	 * renewals nothing recorded (effort 861, requirement 6), for the triggers that have no
+	 * touch-set: startup, a UTC-day crossing while the app runs, and a remote-sync pull. *It was
+	 * `app.state.reconcile` until effort 840 flattened the router tree.*
 	 *
 	 * **Skipped where a newer rentable upgraded the workspace past what this one writes** (effort
 	 * 857, ticket 05): the derived columns are written, and the shell refuses every write there, so
 	 * the pass would fail a launch or a heartbeat that is no person's act. The statuses stay as the
-	 * last writer left them, which is what the others' machines wrote.
+	 * last writer left them, which is what the others' machines wrote, and no renewal is linked.
 	 */
 	reconcile: procedure.member.mutation(async ({ ctx }) => {
 		const reconciledAt = ctx.clock.now();

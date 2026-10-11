@@ -72,7 +72,8 @@ copy a replica's file, and the copy is read out row by row instead.*
 _Avoid_: using it for the local replica, which is a live copy rather than a point in time
 
 **Reconcile**:
-Recompute derived state from its source of truth and write the result back. Always local.
+Recompute derived state from its source of truth and write the result back, and link the
+renewals it recognises, the one fact it writes that is not derived. Always local.
 _Avoid_: sync
 
 **Sync**:
@@ -147,7 +148,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   | --- | --- | --- |
   | 4 composition | `app/` | the composition root, the one place that names every feature: `features.ts` and `surfaces.ts` list the declarations, and `router.ts`, `host.ts`, `caller.ts`, `cache.ts`, `transfer.ts`, `contributions.ts` and `refusal.ts` build from them what the shell and the capabilities are handed |
   | | `shell/` | the window around the pages: the frame, the rail, the breadcrumb, the window controls, the error boundaries and the shortcut sheet, drawn from the surfaces and their `slots`; it names no feature. It was `layout/` until effort 840 |
-  | | `prototype/` | the repository's prototype machinery, `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`), where throwaway prototype code is written ([[rules/module-layout]], under *Prototype code*) |
+  | | `prototype/` | the repository's prototype machinery, `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`), where throwaway prototype code is written ([[rules/module-layout]], under *Prototype code*); and `stage/`, the interface on mock data with no shell behind it, opened by `pnpm stage` and photographed by `pnpm stage:shots` ([[references/stage]]) |
   | | `src/routes/` | the pages, layer-first as SvelteKit requires; a route composes and holds no wiring, importing only a home's components, a home's `ui.ts` and `app/` |
   | 3 features | `tenant/`, `complex/` (with `unit/`, a kind of its own, inside it), `contract/`, `payment/`, `dashboard/` | the record features and the landing screen. A unit is reached only through the complex holding it |
   | | `workspace/`, `organization/`, `settings/`, `sync/`, `update/`, `startup/` | the workspace, the organization with its sub-concepts `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, the settings area, replication, the updater, and the startup lifecycle with its screens |
@@ -186,7 +187,11 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   aggregates, and unit status. Any mutation touching contracts, payments, or unit
   assignments must reconcile, or the stored values go stale. A mutation may seed the
   derived columns of the row it writes, so the row it returns is current without a
-  re-read; reconcile recomputes them regardless, from the same domain functions.
+  re-read; reconcile recomputes them regardless, from the same domain functions. The
+  whole-table pass also writes one fact that is not derived: the renewal link, where it
+  recognises a renewal the application did not record ([[contexts/desktop/contract]],
+  *Renewal link*). Once written the link is the contract's, and no reconcile pass moves it; only
+  the heal moves it, to the contract that stayed when copies merge.
 
 ## Constraints
 

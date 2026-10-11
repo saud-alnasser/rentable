@@ -36,6 +36,11 @@ import {
  * this build writes is that file with the three columns appended, empty for payments that record
  * none. Reading the fixture back is what proves a file without them still imports; the upgrade
  * writer (`tauri/src/upgrade/record.rs`) still writes the three, and is read the same way.
+ *
+ * **A second addition, the same way**: effort 861 (requirement 5) gave the contracts sheet
+ * `Renews` after `Expected`, naming the contract a contract renews, empty for one that renews
+ * none, which is every contract here. The upgrade writer leaves it out, since no earlier version
+ * recorded a renewal, and a file without it reads with nothing linked.
  */
 
 const day = (year: number, month: number, date: number) => Date.UTC(year, month - 1, date);
@@ -103,23 +108,32 @@ function heldFile(): ExportSheet[] {
 	return JSON.parse(readFileSync(new URL('./workbook.json', import.meta.url), 'utf8'));
 }
 
-/** the payments sheet's three columns from effort 854, empty for a payment that records none. */
-const PAYMENT_EXTRAS = ['Method', 'Reference', 'Note'];
+/**
+ * The columns appended since the fixture was taken, by sheet, each empty for this workspace: the
+ * payments sheet's three from effort 854, and the contracts sheet's `Renews` from effort 861,
+ * empty for a contract that renews none.
+ */
+const APPENDED: Record<string, string[]> = {
+	Payments: ['Method', 'Reference', 'Note'],
+	Contracts: ['Renews']
+};
 
 /** what this build writes of the same workspace: the held file, with those columns appended. */
 function expected(): ExportSheet[] {
-	return heldFile().map((sheet) =>
-		sheet.name === 'Payments'
-			? {
+	return heldFile().map((sheet) => {
+		const appended = APPENDED[sheet.name ?? ''] ?? [];
+
+		return appended.length === 0
+			? sheet
+			: {
 					...sheet,
-					headers: [...sheet.headers, ...PAYMENT_EXTRAS],
+					headers: [...sheet.headers, ...appended],
 					rows: sheet.rows.map((row) => [
 						...row,
-						...PAYMENT_EXTRAS.map(() => ({ kind: 'empty' as const }))
+						...appended.map(() => ({ kind: 'empty' as const }))
 					])
-				}
-			: sheet
-	);
+				};
+	});
 }
 
 test('a seeded workspace exports the workbook it always has', async () => {

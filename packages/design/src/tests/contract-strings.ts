@@ -3,8 +3,8 @@ import type { DesignStrings } from '#lib/strings.js';
 /**
  * A complete set of strings for a test that cares about one of them.
  *
- * Scaffolding rather than a test. The contract is 38 keys, and a call site writing all of them
- * out would be 36 lines of noise around the one being asserted.
+ * Scaffolding rather than a test. The contract is 45 keys, and a call site writing all of them
+ * out would be 43 lines of noise around the one being asserted.
  *
  * **Every default is the key's own name in braces**, which is a value no component here renders
  * literally and no locale file contains. So a test that asserts a word reached the DOM supplies
@@ -27,6 +27,9 @@ export function suppliedStrings(overrides: Partial<DesignStrings> = {}): DesignS
 		deleteBlockedDescription: '{deleteBlockedDescription}',
 		deleteDescription: '{deleteDescription}',
 		deleting: '{deleting}',
+		discard: '{discard}',
+		discardChangesDescription: '{discardChangesDescription}',
+		discardChangesTitle: '{discardChangesTitle}',
 		goBack: '{goBack}',
 		export: '{export}',
 		exportDescription: '{exportDescription}',
@@ -34,6 +37,7 @@ export function suppliedStrings(overrides: Partial<DesignStrings> = {}): DesignS
 		formatXlsx: '{formatXlsx}',
 		goToNextPage: '{goToNextPage}',
 		goToPreviousPage: '{goToPreviousPage}',
+		keepEditing: '{keepEditing}',
 		loading: '{loading}',
 		loadingRecord: '{loadingRecord}',
 		mobileSidebarDescription: '{mobileSidebarDescription}',
@@ -47,12 +51,15 @@ export function suppliedStrings(overrides: Partial<DesignStrings> = {}): DesignS
 		pagination: '{pagination}',
 		previous: '{previous}',
 		previousSlide: '{previousSlide}',
+		readFailed: '{readFailed}',
+		readFailedDescription: '{readFailedDescription}',
 		recordNotFound: '{recordNotFound}',
 		recordNotFoundDescription: '{recordNotFoundDescription}',
 		refusal: (failure) => (failure instanceof Error ? failure.message : '{refusal}'),
 		showPassword: '{showPassword}',
 		sidebar: '{sidebar}',
 		toggleSidebar: '{toggleSidebar}',
+		tryAgain: '{tryAgain}',
 		unexpectedError: '{unexpectedError}',
 		unnamedRecord: '{unnamedRecord}',
 		working: '{working}',

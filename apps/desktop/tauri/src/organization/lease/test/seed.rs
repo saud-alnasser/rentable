@@ -74,18 +74,25 @@ pub(crate) const SEEDS: &[Seed] = &[
         rows: SEEDED_AT_EIGHT,
         carried: carried_from_eight,
     },
+    // the shipped version from `0008` until `0009` (effort 861, ticket 09).
+    Seed {
+        version: 9,
+        version_row: true,
+        rows: SEEDED_AT_NINE,
+        carried: carried_from_nine,
+    },
 ];
 
-/// **The workspace as a build of the shipped version leaves it**, at 9 since `0008` (effort 857,
-/// ticket 35): created whole by that build, with its version row and effort 857's records, as
-/// every workspace is from ticket 21 on, and holding [`SEEDED_AT_NINE`]. Opening it walks
-/// nothing. A migration added after it makes this the version before, and its seed then joins
-/// [`SEEDS`], which fails until it does.
+/// **The workspace as a build of the shipped version leaves it**, at 10 since `0009` (effort 861,
+/// ticket 09): created whole by that build, with its version row and effort 857's records, as
+/// every workspace is from effort 857's ticket 21 on, and holding [`SEEDED_AT_TEN`]. Opening it
+/// walks nothing. A migration added after it makes this the version before, and its seed then
+/// joins [`SEEDS`], which fails until it does.
 pub(crate) const AT_THE_SHIPPED_VERSION: Seed = Seed {
-    version: 9,
+    version: 10,
     version_row: true,
-    rows: SEEDED_AT_NINE,
-    carried: carried_at_nine,
+    rows: SEEDED_AT_TEN,
+    carried: carried_at_ten,
 };
 
 /// The workspace ladder of the build at `version`: its first `version` migrations and their
@@ -464,10 +471,10 @@ pub(crate) const SEEDED_AT_NINE: &[&str] = &[
      '{\"name\":\"Sara Al-Harbi\",\"national_id\":\"1012345678\",\"phone\":\"0501234567\"}')",
 ];
 
-/// [`SEEDED_AT_NINE`] as it stands, which is how opening it must leave it: [`SEEDED_AT_EIGHT`]'s
-/// rows carried, the retired copy after them, the version row, and the records its build wrote
-/// creating it.
-pub(crate) fn carried_at_nine() -> Contents {
+/// [`SEEDED_AT_NINE`] at the shipped version: [`SEEDED_AT_EIGHT`]'s rows carried, the retired copy
+/// after them, no contract renewing another, and the version row. The records its build wrote
+/// creating it are as opening it leaves them, which the opening's test adds.
+pub(crate) fn carried_from_nine() -> Contents {
     let mut carried = carried_from_eight();
     let (_, tenants) = carried
         .iter_mut()
@@ -485,20 +492,84 @@ pub(crate) fn carried_at_nine() -> Contents {
         ),
     ]);
 
-    recorded(carried, ladder_at(9).steps.born())
+    with_nothing_merged(carried)
+}
+
+/// A workspace as a build at 10 wrote it: every record of [`SEEDED_AT_NINE`], and a renewal of the
+/// first contract, starting the day after it ends on the same tenant and the same two units, which
+/// names it as the contract it renews (effort 861, ticket 09).
+pub(crate) const SEEDED_AT_TEN: &[&str] = &[
+    SEEDED_AT_NINE[0],
+    SEEDED_AT_NINE[1],
+    SEEDED_AT_NINE[2],
+    SEEDED_AT_NINE[3],
+    SEEDED_AT_NINE[4],
+    SEEDED_AT_NINE[5],
+    SEEDED_AT_NINE[6],
+    SEEDED_AT_NINE[7],
+    SEEDED_AT_NINE[8],
+    SEEDED_AT_NINE[9],
+    "INSERT INTO `contract` (`id`, `gov_id`, `status`, `start_date`, `end_date`,      `interval_in_months`, `cost_per_interval`, `paid_amount`, `expected_amount`,      `tenant_id`, `renews_contract_id`) VALUES      ('0199a000-0000-7000-8000-0000000d0003', '20260001', 'active', 1767312000000,       1798761600000, '6m', 30000.5, 0, 30000.5, '0199a000-0000-7000-8000-000000070001',       '0199a000-0000-7000-8000-0000000d0001')",
+    "INSERT INTO `contract_unit` (`contract_id`, `unit_id`) VALUES      ('0199a000-0000-7000-8000-0000000d0003', '0199a000-0000-7000-8000-0000000a0001'),      ('0199a000-0000-7000-8000-0000000d0003', '0199a000-0000-7000-8000-0000000a0002')",
+];
+
+/// [`SEEDED_AT_TEN`] as it stands, which is how opening it must leave it: [`SEEDED_AT_NINE`]'s rows
+/// carried, the renewal and its two units after them, the version row, and the records its build
+/// wrote creating it.
+pub(crate) fn carried_at_ten() -> Contents {
+    let mut carried = carried_from_nine();
+    let (_, contracts) = carried
+        .iter_mut()
+        .find(|(table, _)| table == "contract")
+        .expect("the contracts carried from nine");
+
+    contracts.push(vec![
+        cell("0199a000-0000-7000-8000-0000000d0003"),
+        cell("20260001"),
+        cell("active"),
+        turso::Value::Integer(1_767_312_000_000),
+        turso::Value::Integer(1_798_761_600_000),
+        cell("6m"),
+        turso::Value::Real(30_000.5),
+        turso::Value::Real(0.0),
+        turso::Value::Real(30_000.5),
+        cell("0199a000-0000-7000-8000-000000070001"),
+        turso::Value::Null,
+        turso::Value::Null,
+        cell("0199a000-0000-7000-8000-0000000d0001"),
+    ]);
+
+    let (_, assignments) = carried
+        .iter_mut()
+        .find(|(table, _)| table == "contract_unit")
+        .expect("the units contracts held, carried from nine");
+
+    for unit in [
+        "0199a000-0000-7000-8000-0000000a0001",
+        "0199a000-0000-7000-8000-0000000a0002",
+    ] {
+        assignments.push(vec![
+            cell("0199a000-0000-7000-8000-0000000d0003"),
+            cell(unit),
+        ]);
+    }
+
+    recorded(carried, ladder_at(10).steps.born())
 }
 
 /// `contents` at the shipped version, where `0008` gave a tenant, a complex, a contract, a unit
 /// and a payment `merged_into` and `merged_as`, empty on every record a build before it wrote
-/// (effort 857, ticket 35): each row of those tables made as wide as the shipped table, with
-/// nothing in what it did not hold. A row already that wide is left as it is.
+/// (effort 857, ticket 35), and `0009` gave a contract `renews_contract_id`, empty on every
+/// contract a build before it wrote (effort 861, ticket 09): each row of those tables made as wide
+/// as the shipped table, with nothing in what it did not hold. A row already that wide is left as
+/// it is.
 fn with_nothing_merged(mut contents: Contents) -> Contents {
     for (table, rows) in contents.iter_mut() {
         let width = match table.as_str() {
             "complex" => 5,
             "tenant" | "unit" => 6,
             "payment" => 10,
-            "contract" => 12,
+            "contract" => 13,
             _ => continue,
         };
 

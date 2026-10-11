@@ -64,6 +64,41 @@ receipts. Never the gross of what was received, which is _collected_ and is the 
 The link between a contract and a unit. A unit may be held by at most one non-terminated
 contract over any given period.
 
+**Renewal link**:
+The contract a contract _renews_, named by its `renews_contract_id` (effort 861, requirement 5):
+the one a renewal continues, its _predecessor_, the renewal being its _successor_. A renewal
+writes it. So does the whole-table reconcile, at every pass on a machine that may write, for a
+contract naming none that starts the UTC day after another ends, on the same tenant and the same
+set of units, and is not terminated (requirement 6, `contract/renewal/recognize.ts`); a match
+ambiguous on either side links nothing, and the reconcile never moves a link once written.
+Creating, duplicating and editing a contract never write it, and their input schemas leave it out;
+undoing a deletion puts it back with the row (`contract.restoreMany`). An edit of either side keeps
+the order renewing keeps: a successor may not start on or before its predecessor ends, nor a
+predecessor end on or after a standing successor starts (`contract.renewalBeforeEnd`, ticket 23),
+and restoring a terminated renewal is held to that order and to its predecessor not being renewed
+by another meanwhile, so a link held is one an export and import carries. A workspace file carries it
+in the contracts sheet's `Renews` column, by the predecessor's reference; an import finds it once
+every row is named, and links it only where the renewal could have been made: the predecessor ends
+before the successor starts, and no standing successor, held or in a row above, renews it already
+(ticket 20). Anything else links nothing and refuses no row for it, and the import runs the same
+recognition once its write has landed (`contract/transfer.ts`). A contract that names none
+renews nothing. Whether a contract is _renewed_ is never stored: it is read from its successors.
+When copies made apart heal into one, a successor naming a retired copy is moved to the contract
+that stayed, and two copies of a successor are compared with what they renew as the contract it
+went into (`tauri/src/database/heal.rs`, ticket 10). A copy naming none pairs with one naming a
+predecessor, since one machine's reconcile may link its copy before the copies meet and an older
+build links none; two naming one pair only where it is the same contract, and the contract that
+stayed names it whichever copy stayed (ticket 18).
+
+**Renewed**:
+A contract a successor that still stands names as the one it renews: a successor not terminated,
+and not retired into a copy by a merge. Never stored: it is read from its successors, by
+`renewedColumn` in `contract/row.ts` where a read asks per row (`contract.get`, the directory) and
+from the same rows where a read holds every contract (the landing screen). So deleting or
+terminating the successor makes the contract not renewed again with nothing to reconcile. A
+renewed contract is not _ending soon_, is not offered _renew_, and is refused a second renewal
+(`contract.alreadyRenewed`).
+
 **Interval**:
 The billing period — monthly, quarterly, semi-annual, or annual. Fixed at creation.
 
@@ -144,8 +179,9 @@ write; a terminated row claims none of its units.
 _Avoid_: conflict — that word belongs to remote sync
 
 **Ending soon**:
-A contract whose end date falls inside the user-configured notice window. A presentation
-concern, never a stored status.
+An active or fulfilled contract whose end date falls inside the user-configured notice window and
+that is not _renewed_: one a standing successor renews has had its renewal, so no ending-soon list
+holds it (effort 861, requirement 7). A presentation concern, never a stored status.
 
 **Owing**:
 A contract inside its period, not terminated, whose outstanding is above zero. What the

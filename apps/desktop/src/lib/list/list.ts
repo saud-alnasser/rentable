@@ -177,4 +177,19 @@ export type ListProps<TData extends { id: string }, TGroup extends ListGroup> = 
 	emptyTitle: string;
 	/** A line under it, saying where the records come from. */
 	emptyDescription?: string;
+	/**
+	 * Whether the read behind `data` failed with nothing to show, as `toReadFailure`
+	 * (`$lib/error/read`) decides it from the query. While it is, the list draws the failed state
+	 * in place of its records and its empty state: no create offered there or in the bar, no
+	 * export, no *nothing yet*, and no count above it, since whether the set holds anything is not
+	 * known ([[rules/interface]], *Empty* and *Error*).
+	 */
+	failed?: boolean;
+	/** Run the read again: the failed state's *try again*. Given with `failed`. */
+	onRetry?: () => void;
+	/**
+	 * Whether the failed read is running again, as `toReadFailure` reports it. While it is, the
+	 * failed state stays in place of the loading one and its *try again* is busy.
+	 */
+	retrying?: boolean;
 };

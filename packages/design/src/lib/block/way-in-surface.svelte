@@ -268,7 +268,7 @@
 		<!-- larger than the tile the rail and the startup screen draw: on the way in the mark is the
 		     only picture on the screen, and the look was judged at this size. -->
 		<div
-			class="way-in-mark mx-auto flex size-14 shrink-0 items-center justify-center rounded-2xl bg-sidebar-primary text-sidebar-primary-foreground"
+			class="way-in-mark mx-auto flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary-fill text-primary-foreground"
 			data-way-in-mark
 		>
 			<MarkIcon class="size-7" />

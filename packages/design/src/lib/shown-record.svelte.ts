@@ -8,7 +8,8 @@
  *
  * Three answers, because the chrome draws three different things:
  *
- * - `undefined`: no record surface stands, or the record is still on its way. Nothing is named.
+ * - `undefined`: no record surface stands, the record is still on its way, or its read failed and
+ *   so has not said whether there is one. Nothing is named.
  * - `null`: the surface stands and the record is not there.
  * - a string: the record's name.
  */

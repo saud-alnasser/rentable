@@ -50,7 +50,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { untrack } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
@@ -206,6 +206,10 @@
 		}
 	);
 
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
+
 	// the last day a payment may be dated. A payment records money already received, so the
 	// procedure refuses a later one; offering it here and refusing it on submit would make the
 	// reader discover the rule by breaking it.
@@ -231,7 +235,9 @@
 			paymentDateValue = parseCalendarDate(nextFormValue.date);
 			latestPaymentDate = toCalendarDate(new Date());
 			submittedRemaining = undefined;
-			form.set(nextFormValue);
+			// the payment it opens on, or today and nothing else, is where the form starts rather
+			// than a change the reader made.
+			seed(reset, nextFormValue);
 		}
 	});
 
@@ -276,7 +282,8 @@
 
 		untrack(() => {
 			if (due > 0 && $form.amount === '') {
-				$form.amount = String(due);
+				// filled for the reader to confirm, so it is no change of theirs until they make one.
+				form.update((data) => ({ ...data, amount: String(due) }), { taint: false });
 			}
 		});
 	});
@@ -434,6 +441,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	dirty={isTainted($tainted)}
 	{enhance}
 	weight="light"
 	title={isRefund ? $LL.contracts.payments.refund.title() : $LL.common.labels.payment()}
@@ -622,13 +630,8 @@
 		</Form.Field>
 	</div>
 
-	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={isPending}
-			onclick={() => onOpenChange(false)}
-		>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isPending} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every submit carries one. -->

@@ -196,7 +196,7 @@
 	 * with a sentence rather than run.
 	 */
 	async function answerAsked(actId: string, contractId: string) {
-		let contract: ContractActRecord | undefined;
+		let contract: ContractActRecord | null;
 
 		try {
 			contract = await readContract(contractId);

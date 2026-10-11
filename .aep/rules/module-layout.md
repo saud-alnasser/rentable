@@ -273,6 +273,14 @@ write-up under the effort's `evidence/prototypes/` is what survives.
 *Why: being untracked, it shows in `git status`, which is what stops it being committed
 silently.*
 
+### Staging is the other machinery there, and it is committed
+
+`prototype/stage/` runs the real interface on mock data with no shell behind it, for the owner
+to look at an effort's on-screen checks ([[rules/staging]], [[references/stage]]). Its machinery
+is committed; the states an effort writes for it are not, and live in that effort's `_stage`
+worktree. It reaches into every feature as a test does, so the layers test leaves it out as it
+leaves `tests/` out, and nothing in it is resolved outside `vite dev --mode stage`.
+
 ### It cannot live under a gitignored protocol directory
 
 Vite serves nothing from outside the project's source tree, so importing a component from

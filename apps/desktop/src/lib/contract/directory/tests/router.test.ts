@@ -16,7 +16,13 @@ import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
 import type { ContractRank } from '$lib/contract/rank/rank.ts';
 import type { ListSort } from '@rentable/design/sort.ts';
-import { seedComplexWithUnit, seedContract } from '$lib/contract/tests/seed.ts';
+import {
+	RENEWAL_WITHDRAWALS,
+	seedComplexWithUnit,
+	seedContract,
+	seedRenewedEndingSoon,
+	withdrawRenewal
+} from '$lib/contract/tests/seed.ts';
 
 /** the sort a contracts list may be asked for, as the procedure states it. */
 type ContractSort = NonNullable<NonNullable<Parameters<Api['contract']['getMany']>[0]>['sort']>;
@@ -972,3 +978,45 @@ test('a list that asks for no rank still reads the whole table', async () => {
 	assert.equal(all.length, 1003);
 	assert.equal(contractListRead(reads).rowCount, 1003);
 });
+
+// --- A renewed contract, effort 861 requirement 7 --------------------------------------
+//
+// a contract a standing successor renews is not up for renewal: the directory's ending-soon rank
+// leaves it out, and its row says it is renewed, which the renew act reads. A successor deleted,
+// terminated or retired by a merge no longer stands, and the contract is up for renewal again.
+
+test('a renewed contract inside its notice window is in no ending-soon list', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+	const row = async (id: string) =>
+		(await api.contract.getMany({})).find((candidate) => candidate.id === id);
+
+	assert.deepEqual(await api.contract.getMany({ rank: 'ending-soon' }), []);
+	assert.equal((await row(contract.id))?.renewed, true);
+	assert.equal((await row(contract.id))?.rank, undefined);
+	assert.equal((await row(successor.id))?.renewed, false);
+	// a list narrowed to the contract's tenant reads it the same way
+	assert.equal(
+		(await api.contract.getMany({ tenantId: contract.tenantId })).find(
+			(candidate) => candidate.id === contract.id
+		)?.renewed,
+		true
+	);
+});
+
+for (const how of RENEWAL_WITHDRAWALS) {
+	test(`a contract whose renewal was ${how} is in the ending-soon list again`, async () => {
+		const seeded = await seedRenewedEndingSoon();
+		const { api, contract, successor } = seeded;
+
+		await withdrawRenewal(seeded, successor.id, how);
+
+		const endingSoon = await api.contract.getMany({ rank: 'ending-soon' });
+
+		assert.deepEqual(
+			endingSoon.map((listed) => listed.id),
+			[contract.id]
+		);
+		assert.equal(endingSoon[0].renewed, false);
+		assert.equal(endingSoon[0].rank, 'ending-soon');
+	});
+}

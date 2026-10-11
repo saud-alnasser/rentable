@@ -25,9 +25,18 @@ export const dashboard = {
 
 	figures: {
 		collected: 'collected',
+		expected: 'expected',
 		occupiedUnits: 'occupied units',
 		outstanding: 'outstanding',
 		returned: 'returned'
+	},
+
+	// the landing screen for a reader whose permissions view none of what it is made of, said rather
+	// than left blank (effort 861, after the owner looked at the staged empty landing).
+	nothingPermitted: {
+		description:
+			'it shows contracts, payments and units. someone who can edit your permissions can let you view them.',
+		title: 'you have no permission to view anything here.'
 	},
 
 	sections: {

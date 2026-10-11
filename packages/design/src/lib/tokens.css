@@ -36,7 +36,8 @@
  * never does: there is no `dark:` variant to select against the tokens, and every utility
  * states the one token it renders, which carries a value in both. a token added to one block
  * and not the other is a defect, and `tests/tokens.test.ts` refuses it, along with any text or
- * tone that falls under WCAG AA against the surfaces it sits on.
+ * tone that falls under WCAG AA against the surfaces it sits on, and any label under it on the
+ * fill it is drawn on.
  *
  * the base is neutral, chroma 0 throughout, and elevation is carried by value. in dark:
  * background < card < popover < muted < secondary < accent, each step lighter reading as more
@@ -69,6 +70,13 @@
 	--popover-foreground: oklch(0.22 0 0);
 	--primary: oklch(0.58 0.2 256);
 	--primary-foreground: oklch(0.99 0 0);
+	/*
+	 * the fills a label is drawn on, explained in the dark block below. a hover paints a fill at 90%
+	 * over the surface, which lightens it on a pale ground, so primary and destructive sit a step
+	 * darker than their text tokens. permitted has no such hover, and its text token already carries
+	 * the label.
+	 */
+	--primary-fill: oklch(0.515 0.2 256);
 	--secondary: oklch(0.935 0 0);
 	--secondary-foreground: oklch(0.22 0 0);
 	--muted: oklch(0.95 0 0);
@@ -77,10 +85,13 @@
 	--accent: oklch(0.915 0 0);
 	--accent-foreground: oklch(0.18 0 0);
 	--destructive: oklch(0.56 0.21 25);
+	--destructive-fill: oklch(0.55 0.21 25);
+	--destructive-foreground: oklch(0.99 0 0);
 	--info: oklch(0.52 0.15 252);
 	--warning: oklch(0.54 0.12 70);
 	--success: oklch(0.52 0.14 152);
 	--permitted: oklch(0.52 0.12 163);
+	--permitted-fill: var(--permitted);
 	--permitted-foreground: oklch(0.99 0 0);
 	--money: oklch(0.51 0.15 152);
 	--border: oklch(0 0 0 / 9%);
@@ -127,6 +138,15 @@
 		--popover-foreground: oklch(0.97 0 0);
 		--primary: oklch(0.64 0.19 252);
 		--primary-foreground: oklch(0.985 0 0);
+		/*
+		 * the fills, each beside the text token of the same tone. a tone light enough to read as text
+		 * on these dark surfaces is too light to carry a white label, so a button, a badge, a selected
+		 * day, a field's error or a checked box is painted from its `-fill` token and labelled in its
+		 * `-foreground`, and the tone itself stays for text. the fills keep the tone's hue and chroma
+		 * and come down in lightness only as far as 4.5:1 under the label needs.
+		 * `tests/tokens.test.ts` holds each pair, solid and at its hover's alpha over every surface.
+		 */
+		--primary-fill: oklch(0.55 0.19 252);
 		--secondary: oklch(0.23 0 0);
 		--secondary-foreground: oklch(0.97 0 0);
 		--muted: oklch(0.2 0 0);
@@ -141,6 +161,8 @@
 		--accent: oklch(0.26 0 0);
 		--accent-foreground: oklch(0.985 0 0);
 		--destructive: oklch(0.704 0.191 22.216);
+		--destructive-fill: oklch(0.575 0.191 22.216);
+		--destructive-foreground: oklch(0.985 0 0);
 		/*
 		 * the two tones that had no name here, and the same defect the greens below already record.
 		 *
@@ -176,6 +198,7 @@
 		 */
 		--success: oklch(0.871 0.15 154.449);
 		--permitted: oklch(0.696 0.17 162.48);
+		--permitted-fill: oklch(0.515 0.17 162.48);
 		--permitted-foreground: oklch(0.985 0 0);
 		--money: oklch(0.792 0.209 151.711);
 		--border: oklch(1 0 0 / 12%);
@@ -206,6 +229,7 @@
 	--color-popover-foreground: var(--popover-foreground);
 	--color-primary: var(--primary);
 	--color-primary-foreground: var(--primary-foreground);
+	--color-primary-fill: var(--primary-fill);
 	--color-secondary: var(--secondary);
 	--color-secondary-foreground: var(--secondary-foreground);
 	--color-muted: var(--muted);
@@ -214,10 +238,13 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-destructive-fill: var(--destructive-fill);
+	--color-destructive-foreground: var(--destructive-foreground);
 	--color-info: var(--info);
 	--color-warning: var(--warning);
 	--color-success: var(--success);
 	--color-permitted: var(--permitted);
+	--color-permitted-fill: var(--permitted-fill);
 	--color-permitted-foreground: var(--permitted-foreground);
 	--color-money: var(--money);
 	--color-border: var(--border);

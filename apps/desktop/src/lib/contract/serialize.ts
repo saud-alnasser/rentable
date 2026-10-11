@@ -24,6 +24,14 @@ export type SerializedContract = Omit<Contract, 'govId'> & {
 	 * that hands a contract to its acts carries it. Absent on a contract in no rank.
 	 */
 	rank?: ContractRank;
+	/**
+	 * whether a successor that still stands renews it (effort 861, requirement 7), read through
+	 * `renewedColumn` in `contract/row.ts` and never stored, so `ContractSchema` does not hold it and
+	 * a restore cannot write it. The rank reads it, and the renew act gates on it, so every read that
+	 * hands a contract to its acts carries it (`ContractActRecord`). A write's answer leaves it off,
+	 * as it leaves off the rank: the write did not read it.
+	 */
+	renewed?: boolean;
 };
 
 export function serializeContract(
@@ -41,7 +49,9 @@ export function serializeContract(
 		cost: record.cost,
 		paidAmount: record.paidAmount,
 		expectedAmount: record.expectedAmount,
-		tenantId: record.tenantId
+		tenantId: record.tenantId,
+		// carried so undoing a deletion puts the link back with the row (`contract.restoreMany`).
+		renewsContractId: record.renewsContractId
 	};
 
 	if (tenantName !== undefined) {

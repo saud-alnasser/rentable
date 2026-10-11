@@ -100,9 +100,9 @@
 						<Calendar.Day
 							class={cn(
 								isAllowedManualDate &&
-									'rounded-full border border-permitted/45 text-permitted hover:bg-permitted/10 data-[selected]:border-permitted data-[selected]:bg-permitted data-[selected]:text-permitted-foreground',
+									'rounded-full border border-permitted/45 text-permitted hover:bg-permitted/10 data-[selected]:border-permitted-fill data-[selected]:bg-permitted-fill data-[selected]:text-permitted-foreground data-[selected]:hover:bg-permitted-fill',
 								isSuggestedDate &&
-									'border-permitted bg-permitted/20 font-medium text-permitted ring-1 ring-permitted/35 data-[selected]:bg-permitted data-[selected]:text-permitted-foreground'
+									'border-permitted bg-permitted/20 font-medium text-permitted ring-1 ring-permitted/35 data-[selected]:border-permitted-fill data-[selected]:bg-permitted-fill data-[selected]:text-permitted-foreground data-[selected]:hover:bg-permitted-fill'
 							)}
 						/>
 					{/snippet}

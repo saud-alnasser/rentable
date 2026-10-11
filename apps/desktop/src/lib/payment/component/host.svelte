@@ -206,7 +206,7 @@
 	 * is refused with a sentence rather than run.
 	 */
 	async function answerAsked(actId: string, paymentId: string) {
-		let payment: PaymentActRecord | undefined;
+		let payment: PaymentActRecord | null;
 
 		try {
 			payment = await readPayment(paymentId);

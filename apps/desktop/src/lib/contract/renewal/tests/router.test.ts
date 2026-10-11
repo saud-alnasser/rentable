@@ -10,6 +10,9 @@ import {
 	refusalReadIn
 } from '$lib/app/tests/testing.ts';
 import { getContractRenewalTerm } from '$lib/contract/renewal/renewal.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import * as s from '$lib/platform/database/schema.ts';
+import { eq } from 'drizzle-orm';
 import {
 	type CreatedContract,
 	seedComplexWithUnit,
@@ -35,10 +38,12 @@ async function renew(
 ) {
 	const term = renewalTerm(contract);
 
+	// the rent the form opens on is the predecessor's, so a renewal nobody changed sends that.
 	return api.contract.renew({
 		contractId: contract.id,
 		start: term.start.getTime(),
 		end: term.end.getTime(),
+		cost: contract.cost,
 		...overrides
 	});
 }
@@ -55,7 +60,8 @@ test('renewing produces a successor whose term follows the original’s', async 
 });
 
 // the one that regresses silently: nothing about renewal writes to the contract it renews, so
-// the whole record is compared rather than its dates.
+// the whole record is compared rather than its dates. Whether it is renewed is the one thing its
+// read says differently, and that is read off the successor rather than written to it.
 test('renewing leaves the original contract unaltered', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { govId: 'ORIGINAL-1' });
@@ -67,14 +73,15 @@ test('renewing leaves the original contract unaltered', async () => {
 
 	await renew(api, contract);
 
-	assert.deepEqual(await api.contract.get({ id: contract.id }), before);
+	assert.deepEqual(await api.contract.get({ id: contract.id }), { ...before, renewed: true });
+	assert.equal(before?.renewed, false);
 	assert.deepEqual(
 		(await api.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
 		[unit.id]
 	);
 });
 
-test('the successor carries the original’s tenant, interval and cost', async () => {
+test('the successor carries the tenant and the interval of the contract it renews', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { interval: '3m', cost: 2500 });
 
@@ -82,7 +89,60 @@ test('the successor carries the original’s tenant, interval and cost', async (
 
 	assert.equal(successor.tenantId, contract.tenantId);
 	assert.equal(successor.interval, '3m');
+});
+
+// effort 861, requirement 5: a renewal records the contract it continues.
+test('the successor names the contract it renews', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	const successor = await renew(api, contract);
+
+	assert.equal(successor.renewsContractId, contract.id);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, contract.id);
+	assert.equal((await api.contract.get({ id: contract.id }))?.renewsContractId, null);
+});
+
+// effort 861, requirement 8 and criterion 8: a renewal may change the rent. The successor carries
+// the rent entered and the predecessor is not written, which is read off the rows themselves, its
+// payments included, rather than off what a read makes of them.
+test('renewing at a different rent gives the successor that rent and leaves the renewed contract as it was', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedContract(api, { interval: '3m', cost: 2500 });
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(-1, 1), amount: 2500 });
+
+	const row = () => db.select().from(s.contract).where(eq(s.contract.id, contract.id)).get();
+	const payments = () =>
+		db.select().from(s.payment).where(eq(s.payment.contractId, contract.id)).all();
+	const before = { row: await row(), payments: await payments() };
+
+	const successor = await renew(api, contract, { cost: 2750 });
+
+	assert.equal(successor.cost, 2750);
+	assert.equal((await api.contract.get({ id: successor.id }))?.cost, 2750);
+	assert.equal(before.payments.length, 1);
+	assert.deepEqual({ row: await row(), payments: await payments() }, before);
+});
+
+test('renewing at the rent the form opens on keeps the old rent', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { interval: '3m', cost: 2500 });
+
+	const successor = await renew(api, contract);
+
 	assert.equal(successor.cost, 2500);
+});
+
+test('the successor is refused a rent that is not above zero', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await assert.rejects(
+		() => renew(api, contract, { cost: 0 }),
+		refusedWith('contract.costNotPositive')
+	);
 });
 
 test('the successor carries the original’s units', async () => {
@@ -183,7 +243,8 @@ test('renewal is refused a term that starts before the original ends', async () 
 			api.contract.renew({
 				contractId: contract.id,
 				start: contract.start,
-				end: contract.end
+				end: contract.end,
+				cost: contract.cost
 			}),
 		refusedWith('contract.renewalBeforeEnd')
 	);
@@ -198,7 +259,8 @@ test('renewal is refused a term that starts on the day the original ends', async
 			api.contract.renew({
 				contractId: contract.id,
 				start: contract.end,
-				end: monthsFromNow(23)
+				end: monthsFromNow(23),
+				cost: contract.cost
 			}),
 		refusedWith('contract.renewalBeforeEnd')
 	);
@@ -213,7 +275,8 @@ test('renewal is refused a term that is not a whole number of the original’s c
 			api.contract.renew({
 				contractId: contract.id,
 				start: contract.end + 24 * 60 * 60 * 1000,
-				end: monthsFromNow(16)
+				end: monthsFromNow(16),
+				cost: contract.cost
 			}),
 		refusedWith('contract.periodOffCycle')
 	);
@@ -227,7 +290,8 @@ test('renewal is refused for a contract that does not exist', async () => {
 			api.contract.renew({
 				contractId: unusedId(),
 				start: monthsFromNow(12),
-				end: monthsFromNow(23)
+				end: monthsFromNow(23),
+				cost: 1000
 			}),
 		refusedWith('contract.missing')
 	);
@@ -235,6 +299,8 @@ test('renewal is refused for a contract that does not exist', async () => {
 
 // undo empties the successor and deletes it, exactly as any other creation is taken back; redo
 // states the identity it had, so a page still open on the successor is holding a live reference.
+// Redo sends what the renewal was sent (`renewal/query.ts`), so the link and the rent come back
+// with the identity (effort 861, criterion 5).
 test('a renewal is undone by emptying and deleting the successor, and redone with its identity', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
@@ -243,7 +309,7 @@ test('a renewal is undone by emptying and deleting the successor, and redone wit
 	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
 
 	const original = await api.contract.get({ id: contract.id });
-	const successor = await renew(api, contract);
+	const successor = await renew(api, contract, { cost: 1200 });
 	const term = renewalTerm(contract);
 
 	await api.contract.units.set({ contractId: successor.id, unitIds: [] });
@@ -261,10 +327,15 @@ test('a renewal is undone by emptying and deleting the successor, and redone wit
 		contractId: contract.id,
 		id: successor.id,
 		start: term.start.getTime(),
-		end: term.end.getTime()
+		end: term.end.getTime(),
+		cost: 1200
 	});
 
 	assert.equal(redone.id, successor.id);
+	assert.equal(redone.renewsContractId, contract.id);
+	assert.equal(redone.cost, 1200);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, contract.id);
+	assert.equal((await api.contract.get({ id: successor.id }))?.cost, 1200);
 	assert.deepEqual(
 		(await api.contract.units.getMany({ contractId: redone.id })).map((held) => held.id),
 		[unit.id]
@@ -279,6 +350,63 @@ test('renewal is refused an identity another contract already holds', async () =
 		() => renew(api, contract, { id: contract.id }),
 		refusedWith('record.idTaken')
 	);
+});
+
+// --- Renewing what is already renewed --------------------------------------------------
+//
+// effort 861, requirement 7: a contract a standing successor renews is not up for renewal, so a
+// second renewal of it is refused. A successor that was terminated, retired into its copy by a
+// merge, or deleted no longer stands, and the contract may be renewed again.
+
+/** a contract that ended a month ago, so the successor a renewal makes of it runs today. */
+async function seedEnded(api: Api) {
+	return seedContract(api, { start: monthsFromNow(-13), end: monthsFromNow(-1) });
+}
+
+test('a contract a standing renewal already renews is refused another', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await renew(api, contract);
+
+	const before = await api.contract.getMany({});
+
+	await assert.rejects(() => renew(api, contract), refusedWith('contract.alreadyRenewed'));
+	assert.deepEqual(await api.contract.getMany({}), before);
+});
+
+test('a contract whose renewal was terminated may be renewed again', async () => {
+	const api = await createApi();
+	const contract = await seedEnded(api);
+	const first = await renew(api, contract);
+
+	await api.contract.terminate({ id: first.id });
+
+	const second = await renew(api, contract);
+
+	assert.notEqual(second.id, first.id);
+	assert.equal(second.renewsContractId, contract.id);
+});
+
+test('a contract whose renewal was retired by a merge may be renewed again', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedContract(api);
+	const first = await renew(api, contract);
+
+	await db.update(s.contract).set({ mergedInto: unusedId() }).where(eq(s.contract.id, first.id));
+
+	assert.equal((await renew(api, contract)).renewsContractId, contract.id);
+});
+
+test('a contract whose renewal was deleted may be renewed again', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const first = await renew(api, contract);
+
+	await api.contract.delete({ id: first.id });
+
+	assert.equal((await renew(api, contract)).renewsContractId, contract.id);
 });
 
 // a renewal that has not started yet is scheduled, which is what the reconcile pass writes to
@@ -303,16 +431,30 @@ test('a renewal refused for its term reads in Arabic', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);
 
+	const term = { start: contract.start, end: contract.end, cost: contract.cost };
+
 	assert.equal(
-		await refusalReadIn(() =>
-			api.contract.renew({ contractId: contract.id, start: contract.start, end: contract.end })
-		),
-		'يجب أن يبدأ التجديد بعد انتهاء العقد الذي يجدده.'
+		await refusalReadIn(() => api.contract.renew({ contractId: contract.id, ...term })),
+		'بهذه التواريخ يبدأ التجديد قبل أن ينتهي العقد الذي يجدده.'
 	);
 	assert.equal(
-		await refusalReadIn(() =>
-			api.contract.renew({ contractId: unusedId(), start: contract.start, end: contract.end })
-		),
+		await refusalReadIn(() => api.contract.renew({ contractId: unusedId(), ...term })),
 		'لم يعد هذا العقد موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.'
+	);
+});
+
+test('a renewal of a contract already renewed reads in both languages', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await renew(api, contract);
+
+	assert.equal(
+		await refusalReadIn(() => renew(api, contract), 'ar'),
+		'جُدّد هذا العقد من قبل. افتح تجديده لتعديله.'
+	);
+	assert.equal(
+		await refusalReadIn(() => renew(api, contract), 'en'),
+		'this contract is already renewed. open its renewal to change it.'
 	);
 });

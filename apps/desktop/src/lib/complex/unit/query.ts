@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import { readRecord } from '$lib/error/read';
 import { UNIT_SORT_COLUMN_IDS, type UnitSortColumnId } from '$lib/complex/complex';
 import { keys } from '$lib/complex/query';
 import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
@@ -112,7 +113,8 @@ export function useFetchUnit(id: () => string) {
 
 		return {
 			queryKey: keys.units.get(freshId),
-			queryFn: () => api.complex.units.get({ id: freshId }),
+			// a unit that is not there answers `null`, so it is not found rather than failed.
+			queryFn: () => readRecord(api.complex.units.get({ id: freshId })),
 			enabled: isRecordId(freshId)
 		};
 	});
@@ -129,7 +131,7 @@ export function useReadUnit() {
 	return (id: string) =>
 		client.fetchQuery({
 			queryKey: keys.units.get(id),
-			queryFn: () => api.complex.units.get({ id })
+			queryFn: () => readRecord(api.complex.units.get({ id }))
 		});
 }
 

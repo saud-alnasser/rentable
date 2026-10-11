@@ -184,12 +184,12 @@
 		{/each}
 	</div>
 
-	{#snippet actions()}
+	{#snippet actions({ requestClose })}
 		<Button
 			type="button"
 			variant="outline"
 			disabled={running}
-			onclick={() => onOpenChange(false)}
+			onclick={requestClose}
 			data-upgrade-not-yet
 		>
 			{$LL.organization.upgrade.notYet()}

@@ -10,7 +10,9 @@
 	/**
 	 * What the list says where it shows nothing: the one empty treatment ([[rules/interface]],
 	 * *Empty*). Nothing yet says what the list will hold and offers the create the toolbar offers;
-	 * a narrowing that matched nothing says so and offers to put the narrowing down.
+	 * a narrowing that matched nothing says so and offers to put the narrowing down. A read that
+	 * failed is neither: whether the set holds anything is not known, so it says the read failed
+	 * and offers only to read it again, never the create or the clear.
 	 */
 	let {
 		listId,
@@ -21,7 +23,10 @@
 		description,
 		onCreate,
 		createLabel,
-		createUnavailable
+		createUnavailable,
+		failed = false,
+		onRetry,
+		retrying = false
 	}: {
 		/** What scopes the refused create's reason id. */
 		listId: string;
@@ -41,6 +46,12 @@
 		createLabel?: string;
 		/** Why the set takes no new record right now, or nothing where it does. */
 		createUnavailable?: string;
+		/** Whether the list's read failed with nothing to show. */
+		failed?: boolean;
+		/** Run the read again. */
+		onRetry?: () => void;
+		/** Whether the failed read is running again. */
+		retrying?: boolean;
 	} = $props();
 
 	// what names the empty state's refused create to assistive technology, whether or not its
@@ -97,7 +108,9 @@
 	</Tooltip.Root>
 {/snippet}
 
-{#if emptyKind === 'no-match'}
+{#if failed}
+	<EmptyState kind="failed" onRetry={() => onRetry?.()} {retrying} />
+{:else if emptyKind === 'no-match'}
 	<EmptyState kind="no-match" title={$LL.common.messages.noMatch()}>
 		{#snippet action()}
 			<Button variant="outline" size="sm" onclick={onClear}>

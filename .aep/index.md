@@ -28,6 +28,7 @@ Start at [[protocol]].
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
 | [[rules/migrations]] | adding or changing a workspace migration or an organization's change of format | packages/workspace-migrations/**, apps/desktop/tauri/src/upgrade/format/** | — |
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/** | — |
+| [[rules/staging]] | an effort's `## Needs you` holds a check the owner makes by looking at the interface, or an effort holding one is handed over | — | — |
 | [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/testing/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | — | — |
@@ -63,6 +64,7 @@ Start at [[protocol]].
 | [[references/pnpm]] | installing dependencies or running any repository script | — |
 | [[references/prettier]] | formatting, or a CI formatting failure has to be reproduced locally | — |
 | [[references/shadcn-svelte]] | adding or regenerating a design primitive | — |
+| [[references/stage]] | launching staging, writing a staged state, or photographing one | — |
 | [[references/svelte]] | building or running this Svelte or SvelteKit application | — |
 | [[references/tauri]] | building, running, or configuring the desktop shell | — |
 | [[references/turborepo]] | running a task across this monorepo's packages, or explaining why one was skipped | — |
@@ -141,6 +143,7 @@ Start at [[protocol]].
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
 | 857-updating-never-locks-a-member-out | implemented | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 41 |
+| 861-the-app-never-shows-something-false | implemented | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 33 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -663,3 +666,36 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/39-the-heal-never-hides-or-doubles-a-record]] fix(records): the heal never hides, doubles or misreads a record | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/40-a-full-access-machine-brings-every-workspace-up]] fix(organization): a full-access machine brings every workspace up, so readers barely wait | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/41-the-words-say-what-the-duplicate-fix-did]] docs: the rules, contexts and comments say what the duplicate fix did | 857-updating-never-locks-a-member-out | resolved | 39, 40 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/01-labels-on-fills-read-in-both-appearances]] fix(design): labels on fills read in both appearances | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/02-error-toasts-stay-and-mirror]] fix(desktop): error toasts stay until closed and mirror in Arabic | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/03-a-failed-list-read-says-it-failed]] fix(desktop): a failed list read says it failed | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/04-a-failed-record-read-says-it-failed]] fix(desktop): a failed record read says it failed | 861-the-app-never-shows-something-false | resolved | 03 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/05-the-landing-screen-states-no-figure-it-does-not-know]] fix(desktop): the landing screen states no figure it does not know | 861-the-app-never-shows-something-false | resolved | 03 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/06-the-form-surface-asks-before-discarding]] fix(design): the form surface asks before discarding changes | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/07-the-schema-forms-report-their-changes]] fix(desktop): the schema forms report their changes | 861-the-app-never-shows-something-false | resolved | 06 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/08-the-other-forms-report-their-changes]] fix(desktop): the forms without a schema report their changes | 861-the-app-never-shows-something-false | resolved | 06 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/09-a-contract-can-name-what-it-renews]] feat(desktop): a contract can name the contract it renews | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/10-merging-copies-keeps-the-renewal-link]] fix(desktop): merging copies keeps the renewal link | 861-the-app-never-shows-something-false | resolved | 09 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/11-renewing-records-the-link-and-may-change-the-rent]] feat(desktop): renewing records the link and may change the rent | 861-the-app-never-shows-something-false | resolved | 09 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/12-reconcile-links-the-renewals-it-did-not-record]] feat(desktop): reconcile links the renewals it did not record | 861-the-app-never-shows-something-false | resolved | 09 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/13-a-renewed-contract-is-not-up-for-renewal]] fix(desktop): a renewed contract is not up for renewal | 861-the-app-never-shows-something-false | resolved | 09, 11 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/14-an-export-carries-the-renewal-link]] feat(desktop): an export carries the renewal link | 861-the-app-never-shows-something-false | resolved | 09, 12 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/15-try-again-shows-it-is-trying]] fix(design): try again shows that it is trying | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/16-the-money-card-links-only-where-the-member-may-go]] fix(desktop): the money card links only where the member may go | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/17-the-interface-rule-names-how-a-form-reports-its-changes]] docs(aep): the interface rule names how a form reports its changes | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/18-copies-pair-when-one-alone-names-what-it-renews]] fix(desktop): copies pair when one alone names what it renews | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/19-a-failed-list-offers-no-create-and-no-export]] fix(desktop): a failed list offers no create and no export | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/20-an-import-writes-only-a-renewal-link-that-can-stand]] fix(desktop): an import writes only a renewal link that can stand | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/21-a-failed-members-read-on-the-workspace-page-says-it-failed]] fix(desktop): a failed members read on the workspace page says it failed | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/22-the-band-never-shows-another-periods-figures]] fix(desktop): the figure band never shows another period's figures | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/23-an-edit-keeps-a-renewal-after-what-it-renews]] fix(desktop): an edit keeps a renewal after the contract it renews | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/24-a-toast-reads-on-its-wash-in-both-appearances]] fix(design): a toast reads on its wash in both appearances | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/25-the-interface-runs-staged-on-mock-data]] feat(desktop): the interface runs staged on mock data, with no shell behind it | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/26-a-staged-state-is-stepped-through-on-a-bar]] feat(desktop): a staged state is described once and stepped through on a bar | 861-the-app-never-shows-something-false | resolved | 25 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/27-every-effort-hands-its-on-screen-checks-over-staged]] docs(aep): every effort hands its on-screen checks over staged | 861-the-app-never-shows-something-false | resolved | 26 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/28-this-efforts-on-screen-checks-are-staged]] docs(861-the-app-never-shows-something-false): this effort's on-screen checks are staged | 861-the-app-never-shows-something-false | resolved | 27 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/29-a-date-picker-reads-in-arabic-and-a-chosen-day-is-round]] fix(design): a date picker names each weekday in Arabic, and a chosen day is round at the edges | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/30-an-error-toast-closes-from-its-x-over-an-open-form]] fix(design): an error toast closes from its X over an open form | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/31-staging-opens-in-the-desktop-window]] feat(desktop): staging opens in the desktop window | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/32-a-landing-with-nothing-for-the-role-says-so]] feat(desktop): a landing screen with nothing the reader may view says so | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/33-a-toasts-action-is-drawn-in-its-tone]] fix(design): a toast's action is drawn in the toast's tone | 861-the-app-never-shows-something-false | resolved | — |

@@ -146,6 +146,8 @@ const en = {
 			loadingRecord: 'loading record...',
 			loadingSettings: 'loading settings...',
 			noMatch: 'nothing matches',
+			readFailed: 'this could not be loaded',
+			readFailedDescription: 'something went wrong while reading it. nothing was changed.',
 			recordNotFound: 'this record does not exist',
 			recordNotFoundDescription: 'it may have been deleted.',
 			unexpectedError: 'unexpected error occurred!',
@@ -267,6 +269,14 @@ const en = {
 			// a record delete undo brings back: it asks first, and says so (effort 846, requirement 2).
 			undoable: 'it is deleted from this workspace. you can undo this while the app is open.',
 			unnamedRecord: 'this record'
+		},
+
+		// the question the form surface asks before a form with changes closes (effort 861).
+		discardDialog: {
+			description: 'your changes have not been saved. once discarded, nothing brings them back.',
+			discard: 'discard',
+			keepEditing: 'keep editing',
+			title: 'discard changes?'
 		}
 	},
 	layout: {

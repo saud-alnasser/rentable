@@ -128,7 +128,7 @@
 					class="absolute end-0 top-0.5 size-4 text-destructive"
 				/>
 				<div
-					class="pointer-events-none absolute end-5 -top-1 z-20 max-w-[calc(100%-2rem)] rounded-lg bg-destructive px-2.5 py-1 text-xs leading-5 font-medium text-white opacity-0 shadow-overlay transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+					class="pointer-events-none absolute end-5 -top-1 z-20 max-w-[calc(100%-2rem)] rounded-lg bg-destructive-fill px-2.5 py-1 text-xs leading-5 font-medium text-destructive-foreground opacity-0 shadow-overlay transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
 				>
 					<div id={errorId} role="alert">{$LL.dashboard.endingSoon.invalid()}</div>
 				</div>

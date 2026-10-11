@@ -17,6 +17,7 @@ export {
 	ensureRefundsCovered,
 	ensureRefundWithinLimit,
 	areRefundsCovered,
+	CONTRACT_KIND,
 	getAmountDueThisCycle,
 	getPaidAmount,
 	getRefundableFromTotals,
@@ -42,6 +43,7 @@ export {
 } from './rank/rank';
 export { withContractRank } from './rank/filter';
 export { reconcileTouched } from './reconcile';
+export { getRenewedContractIds } from './renewal/renewal';
 export {
 	getContractTotalCost,
 	getExpectedAmountBy,

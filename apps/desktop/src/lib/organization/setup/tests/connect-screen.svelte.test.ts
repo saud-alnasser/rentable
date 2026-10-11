@@ -84,7 +84,7 @@ const stepButtons = () =>
 	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-join-step] button'));
 
 /** whether a button is drawn prominent: the filled primary variant. */
-const isProminent = (button: HTMLElement) => button.className.includes('bg-primary');
+const isProminent = (button: HTMLElement) => button.classList.contains('bg-primary-fill');
 
 const LINK = 'rentable://join/abc';
 

@@ -5,9 +5,33 @@
 	import OctagonXIcon from '@lucide/svelte/icons/octagon-x';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
+	import { useDesignContract } from '#lib/strings.js';
 	import { Toaster as Sonner, type ToasterProps as SonnerProps } from 'svelte-sonner';
 
 	let { ...restProps }: SonnerProps = $props();
+
+	const contract = useDesignContract();
+
+	// what dismisses a layer is a `pointerdown` reaching the document from outside it.
+	const keepToSelf = (node: HTMLElement) => {
+		const keep = (event: PointerEvent) => event.stopPropagation();
+		node.addEventListener('pointerdown', keep);
+
+		return () => node.removeEventListener('pointerdown', keep);
+	};
+
+	// sonner reads `start` and `end` as the physical left and right. `auto` frees a side: `unset` on a
+	// custom property inherits, and sonner sets both sides on `<html>` too.
+	const closeCorner = $derived(
+		contract.direction === 'rtl'
+			? '--toast-close-button-start: 0; --toast-close-button-end: auto; --toast-close-button-transform: translate(-35%, -35%);'
+			: '--toast-close-button-start: auto; --toast-close-button-end: 0; --toast-close-button-transform: translate(35%, -35%);'
+	);
+
+	// sonner draws its button as a chip in the reverse of the popover, whatever the toast's tone;
+	// these win over its styles, which sit outside every layer.
+	const action =
+		'h-7! rounded-2xl! border! border-current/30! bg-transparent! px-3! text-xs! font-semibold! text-current! transition-[border-color,box-shadow]! duration-base! hover:border-current! focus-visible:ring-3! focus-visible:ring-current/30! active:translate-y-px';
 </script>
 
 <!--
@@ -23,32 +47,72 @@
 	The wash is mixed rather than authored: `color-mix` over the popover ground keeps a toast a
 	toast, and keeps these four in step with the tokens instead of beside them.
 
+	**The wash is 8% of the tone, because the text is the tone.** Every point of tone mixed into the
+	ground darkens it toward the text, and at 12% the light success, error and warning toasts read
+	at 4.37, 4.41 and 4.41 to 1, under AA. At 8% the lowest is 4.62 to 1 and the tint still says
+	which tone it is. `tests/tokens.test.ts` reads these declarations and holds each type's text to
+	4.5:1 on its wash in both appearances. *Added by effort 861, requirement 9: an error toast stays
+	until closed and is the only word a failed act gets.*
+
 	**`theme` is the application's to pass**, as the appearance it resolved: this package does not
 	choose light or dark, and sonner cannot read the class on `<html>`. *It read `mode-watcher`
 	until effort 832, which followed nothing the application set, so toasts stayed dark in light.*
+
+	**The side, the direction and the close control's name are the design contract's.** Toasts
+	stand at the bottom end of the window, which is the right in a left-to-right reading and the
+	left in a right-to-left one. svelte-sonner places a toaster physically, by `position`, and reads
+	`dir="auto"` from the document once and keeps it, so both are handed over from the contract and
+	follow a change of language. *Added by effort 861, requirement 4: the toaster stood at the bottom
+	right in Arabic, where every other surface mirrors.*
+
+	**The close control sits at the top end corner**, where a reading ends and where a window's own
+	close stands: the right in English, the left in Arabic. sonner puts it at the start; the
+	toaster's style moves it. *Added by effort 861, after the owner looked at the staged error
+	toast.*
+
+	**A toast is pressable over an open dialog, and pressing it leaves the dialog open.** A failed
+	save raises its toast while the form is still open, and a modal dialog turns pointer events off
+	on `<body>`, which the toaster inherited: the X drew on top and every press fell through to the
+	form. The toaster takes its pointer events back, and keeps its presses from the document, where
+	the dialog would read them as leaving it and close or ask *discard*. *Added by effort 861, after
+	the owner pressed the staged error toast's X and nothing happened.*
+
+	**A toast's action is drawn in the toast's tone**: its label and a hairline in the tone, on no
+	fill of its own, so undo on a success toast reads green on the green wash and is plainly a
+	button. With no fill the label sits on the wash its text is held to 4.5:1 on, and hovering
+	firms the outline rather than tinting the ground under it, which would take the contrast below
+	AA. *Added by effort 861, after the owner found the undo and redo buttons plain.*
 -->
-<Sonner
-	class="toaster group"
-	richColors
-	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);
-	       --success-bg: color-mix(in oklab, var(--success) 12%, var(--popover)); --success-border: color-mix(in oklab, var(--success) 30%, transparent); --success-text: var(--success);
-	       --error-bg: color-mix(in oklab, var(--destructive) 12%, var(--popover)); --error-border: color-mix(in oklab, var(--destructive) 30%, transparent); --error-text: var(--destructive);
-	       --warning-bg: color-mix(in oklab, var(--warning) 12%, var(--popover)); --warning-border: color-mix(in oklab, var(--warning) 30%, transparent); --warning-text: var(--warning);
-	       --info-bg: color-mix(in oklab, var(--info) 12%, var(--popover)); --info-border: color-mix(in oklab, var(--info) 30%, transparent); --info-text: var(--info);"
-	{...restProps}
-	>{#snippet loadingIcon()}
-		<Loader2Icon class="size-4 animate-spin" />
-	{/snippet}
-	{#snippet successIcon()}
-		<CircleCheckIcon class="size-4" />
-	{/snippet}
-	{#snippet errorIcon()}
-		<OctagonXIcon class="size-4" />
-	{/snippet}
-	{#snippet infoIcon()}
-		<InfoIcon class="size-4" />
-	{/snippet}
-	{#snippet warningIcon()}
-		<TriangleAlertIcon class="size-4" />
-	{/snippet}
-</Sonner>
+
+<div class="contents" {@attach keepToSelf}>
+	<Sonner
+		class="toaster group pointer-events-auto"
+		position={contract.direction === 'rtl' ? 'bottom-left' : 'bottom-right'}
+		dir={contract.direction}
+		closeButtonAriaLabel={contract.strings.close}
+		richColors
+		toastOptions={{ classes: { actionButton: action, cancelButton: action } }}
+		style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);
+	       --success-bg: color-mix(in oklab, var(--success) 8%, var(--popover)); --success-border: color-mix(in oklab, var(--success) 30%, transparent); --success-text: var(--success);
+	       --error-bg: color-mix(in oklab, var(--destructive) 8%, var(--popover)); --error-border: color-mix(in oklab, var(--destructive) 30%, transparent); --error-text: var(--destructive);
+	       --warning-bg: color-mix(in oklab, var(--warning) 8%, var(--popover)); --warning-border: color-mix(in oklab, var(--warning) 30%, transparent); --warning-text: var(--warning);
+	       --info-bg: color-mix(in oklab, var(--info) 8%, var(--popover)); --info-border: color-mix(in oklab, var(--info) 30%, transparent); --info-text: var(--info);
+	       {closeCorner}"
+		{...restProps}
+		>{#snippet loadingIcon()}
+			<Loader2Icon class="size-4 animate-spin" />
+		{/snippet}
+		{#snippet successIcon()}
+			<CircleCheckIcon class="size-4" />
+		{/snippet}
+		{#snippet errorIcon()}
+			<OctagonXIcon class="size-4" />
+		{/snippet}
+		{#snippet infoIcon()}
+			<InfoIcon class="size-4" />
+		{/snippet}
+		{#snippet warningIcon()}
+			<TriangleAlertIcon class="size-4" />
+		{/snippet}
+	</Sonner>
+</div>

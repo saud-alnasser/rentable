@@ -41,7 +41,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import UnitField from '$lib/contract/assignment/component/unit-field.svelte';
@@ -84,8 +84,8 @@
 		/**
 		 * the contract being renewed, where the form was opened to renew one.
 		 *
-		 * Only its identity is given, because everything the successor carries is read off the
-		 * predecessor rather than assembled by whoever opened the form — three surfaces offer
+		 * Only its identity is given, because what the successor starts from is read off the
+		 * predecessor rather than assembled by whoever opened the form: three surfaces offer
 		 * renewal and one of them holds nothing but the id.
 		 */
 		renewsContractId?: string;
@@ -157,14 +157,16 @@
 
 				try {
 					if (renewsContractId !== undefined) {
-						// the term and the reference are the whole of what a renewal is asked for;
-						// the tenant, the units, the cycle and the cost are the predecessor's and
-						// the procedure reads them off it.
+						// the term, the reference and the rent are what a renewal is asked for. The
+						// rent opened on the predecessor's, so one the reader left alone sends that
+						// (effort 861, requirement 8); the tenant, the units and the cycle are the
+						// predecessor's and the procedure reads them off it.
 						await RenewMutation.mutateAsync({
 							contractId: renewsContractId,
 							govId: payload.govId,
 							start: payload.start,
-							end: payload.end
+							end: payload.end,
+							cost: payload.cost
 						});
 					} else if (form.data.id) {
 						await UpdateMutation.mutateAsync({ id: form.data.id, ...payload });
@@ -205,6 +207,10 @@
 			}
 		}
 	);
+
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
 
 	let isTenantPickerOpen = $state(false);
 	let isStartDatePickerOpen = $state(false);
@@ -283,7 +289,9 @@
 			interval: nextFormValue.interval,
 			cycles: nextFormValue.cycles
 		};
-		form.set(nextFormValue);
+		// what the form opens on, a renewal's term and a duplicate's copy included, is where it
+		// starts rather than a change the reader made.
+		seed(reset, nextFormValue);
 		contractStartDateValue = nextStartDateValue;
 		contractEndDateValue = nextEndDateValue;
 		endDateState = hydrateContractEndDateState({
@@ -361,6 +369,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	dirty={isTainted($tainted)}
 	{enhance}
 	weight="heavy"
 	title={isRenewing ? $LL.contracts.form.renewTitle() : $LL.common.nav.contracts()}
@@ -407,12 +416,13 @@
 					<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
 					<!-- money: the riyal sign as the adornment and the decimal keypad, left to right in
 					     both locales as every amount is drawn ([[rules/interface]], *Field kinds*). -->
-					<InputGroup.Root class={insetControl} dir="ltr" data-disabled={isRenewing || undefined}>
+					<!-- a renewal may change the rent, so the field stays open when renewing, filled with
+					     the predecessor's (effort 861, requirement 8). -->
+					<InputGroup.Root class={insetControl} dir="ltr">
 						<InputGroup.Addon>{RIYAL}</InputGroup.Addon>
 						<InputGroup.Input
 							inputmode="decimal"
 							autocomplete="off"
-							disabled={isRenewing}
 							value={$form.cost}
 							oninput={(event) => {
 								$form.cost = event.currentTarget.value;
@@ -474,8 +484,8 @@
 		</div>
 	</div>
 
-	{#snippet actions()}
-		<Button type="button" variant="outline" disabled={isSaving} onclick={closeContractForm}>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isSaving} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every submit carries one; renew takes the glyph

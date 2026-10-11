@@ -146,9 +146,10 @@ async function run<TVariables, TResult, TCaptured>(
 }
 
 /**
- * a contract as its own read answers with it, less the reference a workspace file calls it by and
- * its tenant's name: a mutation's answer never carried either, and what these tests compare is the
- * record itself.
+ * a contract as its own read answers with it, less the reference a workspace file calls it by, its
+ * tenant's name and whether it is renewed: a mutation's answer carries none of them, and what these
+ * tests compare is the record itself. Whether it is renewed is read off its successors, and a test
+ * about it asks the read itself.
  */
 async function readContract(id: string) {
 	const read = await caller.contract.get({ id });
@@ -157,7 +158,9 @@ async function readContract(id: string) {
 		return read;
 	}
 
-	const { reference, tenantName, ...contract } = read;
+	const { reference, tenantName, renewed, ...contract } = read;
+
+	assert.equal(typeof renewed, 'boolean', 'a contract read says whether it is renewed');
 
 	assert.ok(reference, 'a contract read names the reference a file calls it by');
 	assert.ok(tenantName, 'a contract read names its tenant to a reader who may see tenants');
@@ -361,7 +364,9 @@ describe('undoing a record change', () => {
 	});
 
 	// a renewal is a creation, and is taken back like one — the successor arrives holding units,
-	// so the inverse empties it before deleting it, and putting it back restores those units.
+	// so the inverse empties it before deleting it, and putting it back restores those units. It is
+	// renewed at a new rent, and applied again it names the contract it renews and holds that rent
+	// under the same identity (effort 861, criterion 5).
 	it('takes back a renewal, and applies it again with the identity it had', async () => {
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
@@ -380,8 +385,12 @@ describe('undoing a record change', () => {
 		const successor = await run(useRenewContract, {
 			contractId: contract.id,
 			start: term.start.getTime(),
-			end: term.end.getTime()
+			end: term.end.getTime(),
+			cost: 1200
 		});
+
+		assert.equal(successor.renewsContractId, contract.id);
+		assert.equal(successor.cost, 1200);
 
 		await inverseStack.undo();
 		assert.equal(await caller.contract.get({ id: successor.id }), undefined);
@@ -395,9 +404,15 @@ describe('undoing a record change', () => {
 			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
 			[unit.id]
 		);
+		// with its renewal taken back nothing renews it, and applied again its renewal does
+		// (effort 861, requirement 7).
+		assert.equal((await caller.contract.get({ id: contract.id }))?.renewed, false);
 
 		await inverseStack.redo();
+		assert.equal((await caller.contract.get({ id: contract.id }))?.renewed, true);
 		assert.deepEqual(await readContract(successor.id), successor);
+		assert.equal((await readContract(successor.id))?.renewsContractId, contract.id);
+		assert.equal((await readContract(successor.id))?.cost, 1200);
 		assert.deepEqual(
 			(await caller.contract.units.getMany({ contractId: successor.id })).map((held) => held.id),
 			[unit.id]
@@ -826,7 +841,8 @@ describe('taking back a creation whose record somebody else deleted', () => {
 		const successor = await run(useRenewContract, {
 			contractId: contract.id,
 			start: term.start.getTime(),
-			end: term.end.getTime()
+			end: term.end.getTime(),
+			cost: contract.cost
 		});
 
 		await caller.contract.delete({ id: successor.id });

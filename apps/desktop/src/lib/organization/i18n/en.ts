@@ -715,7 +715,8 @@ export const organization = {
 			duplicateValues:
 				'records saved apart on two machines all stay, even with the same phone, national ID, complex name or government ID.',
 			identicalRecords:
-				'a record saved the same way on two machines while apart becomes one, keeping everything that belongs to it.'
+				'a record saved the same way on two machines while apart becomes one, keeping everything that belongs to it.',
+			renewalLink: 'which contract each renewal continues.'
 		}
 	}
 } satisfies BaseTranslation;

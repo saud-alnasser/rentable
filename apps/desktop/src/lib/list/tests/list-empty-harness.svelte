@@ -5,7 +5,8 @@
 	 * Scaffolding rather than a test, and a fixture rather than a `wrapper` because the block takes
 	 * a snippet and needs two providers. The search and the filter are bound and written out, so a
 	 * test reads what pressing the empty state's act put down. The transfer menu is drawn where a
-	 * test asks for it, with the import refused where the test hands a reason.
+	 * test asks for it, with the import refused where the test hands a reason. A test hands it a read
+	 * that failed, and what runs it again, as a directory hands them from its query.
 	 */
 	import List from '$lib/list/component/list.svelte';
 	import type { FilterSelection, ListFilter } from '$lib/list';
@@ -21,7 +22,9 @@
 		onCreate,
 		exportable = false,
 		onImport,
-		importUnavailable
+		importUnavailable,
+		failed = false,
+		onRetry
 	}: {
 		initialSearch?: string;
 		initialFilters?: FilterSelection;
@@ -30,6 +33,10 @@
 		exportable?: boolean;
 		onImport?: () => void;
 		importUnavailable?: string;
+		/** whether the list's read failed. */
+		failed?: boolean;
+		/** what runs the read again. */
+		onRetry?: () => void;
 	} = $props();
 
 	const status: ListFilter = {
@@ -57,6 +64,8 @@
 			exportAs={exportable ? { name: 'tenants', columns: [] } : undefined}
 			{onImport}
 			{importUnavailable}
+			{failed}
+			{onRetry}
 			createLabel={en.common.actions.newTenant}
 			emptyTitle="no tenants yet"
 			emptyDescription="tenants you add will be listed here."

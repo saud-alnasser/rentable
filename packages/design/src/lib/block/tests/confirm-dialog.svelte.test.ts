@@ -62,6 +62,13 @@ test('the title and the confirming control are the act, and no delete word appea
 	expect(content()?.textContent).not.toContain('لا يمكن التراجع عن هذا');
 });
 
+test('leaving says what the caller names it, where cancel does not say it', () => {
+	open({ cancelLabel: 'متابعة التعديل' }, { cancel: 'إلغاء' });
+
+	expect(footer()[0]?.textContent?.trim()).toBe('متابعة التعديل');
+	expect(content()?.textContent).not.toContain('إلغاء');
+});
+
 test('the record leads and what the act does follows it', () => {
 	open({ record: 'عقد ٤٢', description: 'ينتهي العقد اليوم' });
 
@@ -79,13 +86,13 @@ test('an act on no record says only what it does', () => {
 test('an act that takes something away is the destructive control, one that gives back is not', () => {
 	const { unmount } = open({});
 
-	expect(footer()[1]?.classList).toContain('bg-destructive');
+	expect(footer()[1]?.classList).toContain('bg-destructive-fill');
 	unmount();
 
 	open({ tone: 'neutral', title: 'استعادة العقد', confirmLabel: 'استعادة' });
 
-	expect(footer()[1]?.classList).not.toContain('bg-destructive');
-	expect(footer()[1]?.classList).toContain('bg-primary');
+	expect(footer()[1]?.classList).not.toContain('bg-destructive-fill');
+	expect(footer()[1]?.classList).toContain('bg-primary-fill');
 });
 
 test('the confirming control takes the act in flight while the handler runs', async () => {

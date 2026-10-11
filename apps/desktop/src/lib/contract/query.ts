@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import { readRecord } from '$lib/error/read';
 import {
 	CONTRACT_SORT_COLUMN_IDS,
 	toContractName as toContractRecordName,
@@ -185,7 +186,8 @@ export function useFetchContract(id: () => string, enabled: () => boolean = () =
 		return {
 			queryKey: keys.get(freshId),
 			enabled: enabled(),
-			queryFn: () => api.contract.get({ id: freshId })
+			// a contract that is not there answers `null`, so it is not found rather than failed.
+			queryFn: () => readRecord(api.contract.get({ id: freshId }))
 		};
 	});
 }
@@ -223,7 +225,10 @@ export function useReadContract() {
 	const client = useQueryClient();
 
 	return (id: string) =>
-		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.contract.get({ id }) });
+		client.fetchQuery({
+			queryKey: keys.get(id),
+			queryFn: () => readRecord(api.contract.get({ id }))
+		});
 }
 
 /**

@@ -20,7 +20,8 @@ import { getConflictingAssignedUnitIds, rangesOverlap } from './assignment/assig
 import { ensureGovIdAvailable, ensureValidContractInput, hasValidContractCost } from './contract';
 import { contractsHoldingGovId, selectAssignmentsForUnits } from './row';
 import { hasValidContractPeriodForInterval } from './schedule/cycle';
-import { contractStatusesAt, reconcileTouched } from './reconcile';
+import { contractStatusesAt, linkRecognizedRenewals, reconcileTouched } from './reconcile';
+import { doesRenewalFollowPredecessor, getRenewedContractIds } from './renewal/renewal';
 
 /**
  * THE CONTRACTS SHEET
@@ -38,6 +39,16 @@ import { contractStatusesAt, reconcileTouched } from './reconcile';
  * naming a unit twice is refused on its own (`validate`); a row taking a unit another row or a
  * held live contract takes over the same days is found through `claims` in the plan and refused
  * again by the write. A terminated contract keeps its units and claims none of them.
+ *
+ * **A contract names the contract it renews in `Renews`**, by the reference this sheet calls that
+ * one (effort 861, requirement 5). It is not one of the row's `references`, which would drop the
+ * row, and which the planning pass reads before the rows of this sheet are named: it is found at
+ * the write (`Writing.find`), once every row is named, so a renewal above its predecessor still
+ * finds it, and a name nothing answers to links nothing and refuses nothing. Nor does one naming a
+ * contract the renewal could not continue (ticket 20): one ending on or after the renewal starts,
+ * or one a standing successor renews already, held or in a row above. A file without the column
+ * reads as it always did. Once the write has landed, `settle` runs the recognition the
+ * whole-table reconcile runs, so a renewal the file did not link is linked where the rule finds it.
  */
 
 /** A contract, as a file holds one. */
@@ -54,6 +65,8 @@ export type TransferContract = {
 	status: Contract['status'];
 	paidAmount: number;
 	expectedAmount: number;
+	/** the reference of the contract it renews, only where it renews one. */
+	renews?: string;
 };
 
 /** a row of the sheet, as text, before it is a contract; its tenant is their national id. */
@@ -67,6 +80,8 @@ type ContractRow = {
 	cost: string;
 	/** what the file said the contract was. Only `terminated` is read; the rest is derived. */
 	status: string;
+	/** the reference of the contract it renews, or nothing. */
+	renews: string;
 };
 
 /** every interval a contract may run on, as the file spells them. */
@@ -129,7 +144,10 @@ export default defineSheet({
 		{
 			header: 'Expected',
 			value: (contract) => ({ kind: 'money', value: contract.expectedAmount })
-		}
+		},
+		// last, because the workbook is a public contract a column is only ever appended to
+		// (`transfer/tests/workbook.test.ts`).
+		{ header: 'Renews', value: (contract) => contract.renews }
 	],
 	// a status as stored, or as the term and the payments make it now where the read derives: a
 	// workspace read on Turso may hold one nobody reconciled since a day passed.
@@ -145,6 +163,7 @@ export default defineSheet({
 				cost: s.contract.cost,
 				paidAmount: s.contract.paidAmount,
 				expectedAmount: s.contract.expectedAmount,
+				renewsContractId: s.contract.renewsContractId,
 				tenant: s.tenant.nationalId
 			})
 			.from(s.contract)
@@ -173,18 +192,26 @@ export default defineSheet({
 			unitsOf.set(assignment.contractId, held);
 		}
 
-		return contracts.map((contract) => ({
-			reference: referenceOf.get(contract.id)!,
-			tenant: contract.tenant,
-			units: unitsOf.get(contract.id) ?? [],
-			start: contract.start.getTime(),
-			end: contract.end.getTime(),
-			interval: contract.interval,
-			cost: contract.cost,
-			status: derived?.get(contract.id) ?? contract.status,
-			paidAmount: contract.paidAmount,
-			expectedAmount: contract.expectedAmount
-		}));
+		return contracts.map((contract) => {
+			// one the read does not hold is left unnamed: a reference nothing answers to would be
+			// read back as no link at all.
+			const renews =
+				contract.renewsContractId === null ? undefined : referenceOf.get(contract.renewsContractId);
+
+			return {
+				reference: referenceOf.get(contract.id)!,
+				tenant: contract.tenant,
+				units: unitsOf.get(contract.id) ?? [],
+				start: contract.start.getTime(),
+				end: contract.end.getTime(),
+				interval: contract.interval,
+				cost: contract.cost,
+				status: derived?.get(contract.id) ?? contract.status,
+				paidAmount: contract.paidAmount,
+				expectedAmount: contract.expectedAmount,
+				...(renews === undefined ? {} : { renews })
+			};
+		});
 	},
 	// contract references.
 	held: async (db) => [...(await referencesOf(db)).values()],
@@ -205,7 +232,9 @@ export default defineSheet({
 		{ id: 'interval', headers: ['Interval', 'الدورة'], required: true },
 		{ id: 'cost', headers: ['Cost', 'التكلفة'], required: true },
 		// optional, so a file without the column still reads, every contract in it live.
-		{ id: 'status', headers: ['Status', 'الحالة'] }
+		{ id: 'status', headers: ['Status', 'الحالة'] },
+		// optional too, so a file without it reads with nothing linked.
+		{ id: 'renews', headers: ['Renews', 'يجدد'] }
 	],
 	validate: (row: ContractRow) => {
 		const units = namedUnits(row).map(unitKey);
@@ -273,7 +302,8 @@ export default defineSheet({
 		// and both amounts, the moment the workspace holds the payments.
 		status: isTerminated(row.status) ? ('terminated' as const) : ('active' as const),
 		paidAmount: 0,
-		expectedAmount: 0
+		expectedAmount: 0,
+		...(row.renews.trim() ? { renews: row.renews.trim() } : {})
 	}),
 	answers: {
 		record: (contract) => [contract.reference],
@@ -327,17 +357,19 @@ export default defineSheet({
 		end: contract.end,
 		interval: contract.interval,
 		cost: contract.cost,
-		status: contract.status === 'terminated' ? ('terminated' as const) : ('active' as const)
+		status: contract.status === 'terminated' ? ('terminated' as const) : ('active' as const),
+		...(contract.renews === undefined ? {} : { renews: contract.renews })
 	}),
 	// narrowed from the schema: `start`, `end`, `interval` and `cost` are fields this write
-	// persists, and the three that are left are the file's own way of naming what a row points at.
-	// A status is a termination or nothing, since every other one is derived; absent, the contract
-	// is live.
+	// persists, and the reference, the tenant, the units and what it renews are the file's own way
+	// of naming what a row points at. A status is a termination or nothing, since every other one is
+	// derived; absent, the contract is live.
 	input: ContractSchema.pick({ start: true, end: true, interval: true, cost: true }).extend({
 		reference: z.string(),
 		tenant: z.string(),
 		units: z.array(z.string()),
-		status: z.enum(['active', 'terminated']).optional()
+		status: z.enum(['active', 'terminated']).optional(),
+		renews: z.string().optional()
 	}),
 	write: async (contracts, writing) => {
 		const rows = contracts.map((contract) => {
@@ -439,9 +471,74 @@ export default defineSheet({
 			.filter((_, index) => contracts[index].status === 'terminated')
 			.map((row) => row.id);
 
+		// what each contract renews, asked only now that every row of the sheet is named. Found
+		// rather than resolved: a name nothing answers to, or more than one does, links nothing and
+		// refuses nothing, and so does a contract naming itself.
+		const named = contracts.map((contract, index) => {
+			const reference = contract.renews?.trim();
+			const found = reference ? writing.find('contracts', reference) : undefined;
+
+			return found === rows[index].id ? undefined : found;
+		});
+
+		// and of those, only the renewals that could have been made: the contract named ends before
+		// the renewal starts, and no other standing successor renews it, whether the workspace holds
+		// that one or a row above this one wrote it. Any other name links nothing and refuses
+		// nothing, like one nothing answers to; the dates alone are what keep two rows from renewing
+		// each other. The renewal's own rules, so a file cannot link what `contract.renew` refuses.
+		const written = new Set(rows.map((row) => row.id));
+		const heldIds = [
+			...new Set(named.filter((id): id is string => id !== undefined && !written.has(id)))
+		];
+		const heldEnds =
+			heldIds.length === 0
+				? []
+				: await writing.db
+						.select({ id: s.contract.id, end: s.contract.end })
+						.from(s.contract)
+						.where(inArray(s.contract.id, heldIds));
+		const heldSuccessors =
+			heldIds.length === 0
+				? []
+				: await writing.db
+						.select({ renewsContractId: s.contract.renewsContractId, status: s.contract.status })
+						.from(s.contract)
+						.where(inArray(s.contract.renewsContractId, heldIds));
+		const endOf = new Map<string, Date>([
+			...rows.map((row): [string, Date] => [row.id, row.end]),
+			...heldEnds.map(({ id, end }): [string, Date] => [id, end])
+		]);
+		const renewed = getRenewedContractIds(heldSuccessors);
+
+		const renewing = rows.map((row, index) => {
+			const predecessor = named[index];
+			const end = predecessor === undefined ? undefined : endOf.get(predecessor);
+
+			if (
+				predecessor === undefined ||
+				end === undefined ||
+				renewed.has(predecessor) ||
+				!doesRenewalFollowPredecessor(end, row.start)
+			) {
+				return null;
+			}
+
+			// a row the file terminated is no standing successor, and leaves its predecessor to the
+			// rows below it as the workspace would.
+			const status = contracts[index].status ?? 'active';
+
+			for (const id of getRenewedContractIds([{ renewsContractId: predecessor, status }])) {
+				renewed.add(id);
+			}
+
+			return predecessor;
+		});
+
 		return {
 			statements: [
-				...rows.map((row) => writing.db.insert(s.contract).values(row)),
+				...rows.map((row, index) =>
+					writing.db.insert(s.contract).values({ ...row, renewsContractId: renewing[index] })
+				),
 				...assignments.map(({ contractId, unitId }) =>
 					writing.db.insert(s.contractUnit).values({ contractId, unitId })
 				)
@@ -472,9 +569,14 @@ export default defineSheet({
 	// alone, a ledger read back into a contract would move its money and leave its paid amount and
 	// its status saying otherwise. The units follow from the contracts, which the pass closes over
 	// on its own.
-	settle: (ctx, now, touched) =>
-		reconcileTouched(ctx, now, {
+	//
+	// Then the renewals the file did not link, once and over the whole table, as the whole-table
+	// reconcile links them: a renewal's predecessor may be a contract the workspace already held.
+	settle: async (ctx, now, touched) => {
+		await reconcileTouched(ctx, now, {
 			contractIds: [...(touched.contractIds ?? [])],
 			unitIds: [...(touched.unitIds ?? [])]
-		})
+		});
+		await linkRecognizedRenewals(ctx.db);
+	}
 });

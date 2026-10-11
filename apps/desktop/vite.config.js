@@ -2,6 +2,8 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
+import { stage } from './src/lib/prototype/stage/vite.js';
+
 const globalThisWithProcess = /** @type {Record<string, unknown>} */ (globalThis);
 const nodeProcess = /** @type {{ env?: Record<string, string | undefined> } | undefined} */ (
 	globalThisWithProcess.process
@@ -10,7 +12,8 @@ const host = nodeProcess?.env?.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit()],
+	// `stage()` applies to `vite dev --mode stage` alone (`pnpm stage`); see its module.
+	plugins: [stage(), tailwindcss(), sveltekit()],
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	//

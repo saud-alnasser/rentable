@@ -22,6 +22,8 @@
 		"db:purge:desktop": "pnpm --filter ./apps/desktop db:purge",
 		"tauri": "pnpm --filter ./apps/desktop tauri",
 		"prototype": "pnpm --filter ./apps/desktop prototype",
+		"stage:open": "pnpm --filter ./apps/desktop stage:open",
+		"stage:shots": "pnpm --filter ./apps/desktop stage:shots",
 		"i18n": "pnpm --filter ./apps/desktop i18n"
 	},
 	"devDependencies": {

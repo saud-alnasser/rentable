@@ -1,5 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
-import { beforeEach, expect, test } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 
 // composed, as the frame does by importing them (`glyphOf` in `$lib/feature/surface`).
 import '$lib/app/surfaces';
@@ -120,4 +120,61 @@ test('what the shell refused stands in the sheet', () => {
 	expect(document.querySelector('[data-holder-permissions-error]')?.textContent?.trim()).toBe(
 		'refused here'
 	);
+});
+
+/**
+ * A changed sheet asks before it closes (requirement 10 of
+ * [[efforts/861-the-app-never-shows-something-false/spec]], ticket 08). The sheet says whether a
+ * switch moved from what it opened on, and the surface asks on that: driven here through the
+ * sheet's own cancel, which reaches the surface's `requestClose`. The question's words are the
+ * placeholder contract's, `{discard}` and `{keepEditing}`.
+ */
+const cancel = () =>
+	Array.from(surface().querySelectorAll<HTMLButtonElement>('button[type="button"]')).find(
+		(button) => button.textContent?.trim() === i18nObject('en').common.actions.cancel()
+	)!;
+const question = () => document.querySelector('[data-confirm-dialog]');
+
+test('a turned switch asks before the sheet closes', async () => {
+	const onOpenChange = vi.fn();
+
+	sheet({ onOpenChange });
+
+	await unfold('payment');
+	await fireEvent.click(toggle('viewPayment')!);
+	await fireEvent.click(cancel());
+
+	await waitFor(() => expect(question()).not.toBeNull());
+	expect(question()?.textContent).toContain('{discard}');
+	expect(question()?.textContent).toContain('{keepEditing}');
+	expect(onOpenChange).not.toHaveBeenCalled();
+});
+
+test('an untouched sheet closes at once', async () => {
+	const onOpenChange = vi.fn();
+
+	sheet({ onOpenChange });
+
+	await fireEvent.click(cancel());
+
+	await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+	expect(question()).toBeNull();
+});
+
+// a write rather than a view: turning a view off turns its writes off with it, and turning it on
+// again turns none of them back, so a view turned and turned back is a change.
+test('a switch turned and turned back closes at once', async () => {
+	const onOpenChange = vi.fn();
+
+	sheet({ onOpenChange });
+
+	await unfold('payment');
+	await fireEvent.click(toggle('deletePayment')!);
+	expect(toggle('deletePayment')?.getAttribute('aria-checked')).toBe('true');
+	await fireEvent.click(toggle('deletePayment')!);
+	expect(toggle('deletePayment')?.getAttribute('aria-checked')).toBe('false');
+	await fireEvent.click(cancel());
+
+	await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+	expect(question()).toBeNull();
 });

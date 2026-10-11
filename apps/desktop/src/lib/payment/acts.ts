@@ -180,7 +180,7 @@ export type PaymentCreateContract = Pick<Contract, 'status' | 'paidAmount' | 'ex
  * what is required.
  */
 export function toPaymentCreateUnavailable(
-	contract: PaymentCreateContract | undefined,
+	contract: PaymentCreateContract | null | undefined,
 	t: TranslationFunctions
 ): string | undefined {
 	const refused = memberPermissions.refusal('createPayment', t);
@@ -212,12 +212,12 @@ export function toPaymentCreateUnavailable(
  * procedure weighs its rows and stays the authority.
  */
 export function toRefundCreateUnavailable(
-	contract: PaymentCreateContract | undefined,
+	contract: PaymentCreateContract | null | undefined,
 	t: TranslationFunctions
 ): string | undefined {
 	const refused = memberPermissions.refusal('createPayment', t);
 
-	return refused || (contract && whyNothingIsRefundable(contract, t));
+	return refused || (contract ? whyNothingIsRefundable(contract, t) : undefined);
 }
 
 /**

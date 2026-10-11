@@ -1,0 +1,13 @@
+-- Generated from `contract` in `apps/desktop/src/lib/platform/database/schema.ts`, which gained
+-- `renews_contract_id`; the notes below are hand-written after the fact.
+--
+-- WHY: a renewal recorded no link to the contract it continues, so a renewed contract kept ranking
+-- as ending soon and kept offering renew. The column names the contract a renewal continues, and
+-- whether a contract is renewed is read from it rather than stored. Effort 861, requirement 5.
+--
+-- AN ADDITION, declared in `apps/desktop/tauri/src/database/step.rs`: one column that may be empty,
+-- empty on every contract saved before it. An older build ignores it and reads and writes as it did;
+-- what it gets wrong is only leaving the link out of a renewal, an undo or an export it makes, which
+-- requirement 6 has the reconcile heal where the pair matches. No row is written here: a backfill
+-- would be an `UPDATE`, which an addition may not hold.
+ALTER TABLE `contract` ADD `renews_contract_id` text;

@@ -34,6 +34,7 @@
 </script>
 
 <script lang="ts">
+	import ConfirmDialog from '#lib/block/confirm-dialog.svelte';
 	import * as Dialog from '#lib/primitive/dialog/index.js';
 	import { toTitleCase } from '#lib/title-case.js';
 	import { useDesignContract } from '#lib/strings.js';
@@ -56,10 +57,19 @@
 	 * errors, the scroll position and the focus all survive because none of them is ever
 	 * recreated. The sheet enters from the inline-end edge and the panel from its own centre;
 	 * both mirror with the locale.
+	 *
+	 * **A form with changes asks before it closes** ([[rules/interface]], *Form surface*). Escape, a
+	 * press on the overlay and the corner control all reach the open setter below, and the form's
+	 * cancel reaches the `requestClose` handed to its actions, so every close the reader makes
+	 * passes through one place: while `dirty`, that place asks *discard* or *keep editing*; while
+	 * clean, it closes at once. A submit is the form's own close, made by setting `open`, and
+	 * never passes through here, so it never asks. Whether a form is dirty is the form's to say:
+	 * only it can see the state it keeps outside its fields.
 	 */
 	let {
 		open,
 		onOpenChange,
+		dirty = false,
 		weight,
 		title,
 		description,
@@ -69,6 +79,8 @@
 	}: {
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
+		/** Whether the reader has changed anything, so closing would lose it. */
+		dirty?: boolean;
 		/** How much form there is. Declared rather than measured: measuring it would make the
 		 * surface reflow while the user types. */
 		weight: FormWeight;
@@ -80,14 +92,33 @@
 		enhance: Action<HTMLFormElement>;
 		/** The fields, laid out by the form. */
 		children: Snippet;
-		/** The buttons, rendered in the footer in the order given. */
-		actions: Snippet;
+		/** The buttons, rendered in the footer in the order given. A cancel calls `requestClose`,
+		 * which asks first where the form has changes. */
+		actions: Snippet<[{ requestClose: () => void }]>;
 	} = $props();
 
 	const contract = useDesignContract();
+
+	/** whether the question before discarding is in front of the reader. */
+	let asking = $state(false);
+
+	// a form closed by its own path while the question stood leaves no question behind it.
+	$effect(() => {
+		if (!open) asking = false;
+	});
+
+	/** close where nothing would be lost, and ask first where something would. */
+	const requestClose = () => {
+		if (dirty) {
+			asking = true;
+			return;
+		}
+
+		onOpenChange(false);
+	};
 </script>
 
-<Dialog.Root bind:open={() => open, onOpenChange}>
+<Dialog.Root bind:open={() => open, (value) => (value ? onOpenChange(true) : requestClose())}>
 	<Dialog.Portal>
 		<Dialog.Overlay />
 		<!-- the panel is bits-ui's own rather than the dialog or sheet primitive's: all three wrap
@@ -116,7 +147,7 @@
 				<div
 					class="mt-auto flex flex-col gap-2 border-t border-border/60 bg-muted/10 px-5 py-4 sm:flex-row sm:justify-end sm:gap-3"
 				>
-					{@render actions()}
+					{@render actions({ requestClose })}
 				</div>
 			</form>
 
@@ -129,3 +160,17 @@
 		</DialogPrimitive.Content>
 	</Dialog.Portal>
 </Dialog.Root>
+
+<!-- leaving the question, by keep editing, Escape or a press outside it, closes the question
+     alone, and bits-ui hands focus back to where it was in the form. keep editing is the first
+     control in the question, so it is the one focused when the question opens. -->
+<ConfirmDialog
+	open={open && asking}
+	onOpenChange={(value) => (asking = value)}
+	onSubmit={() => onOpenChange(false)}
+	title={contract.strings.discardChangesTitle}
+	description={contract.strings.discardChangesDescription}
+	confirmLabel={contract.strings.discard}
+	confirmLoadingLabel={contract.strings.discard}
+	cancelLabel={contract.strings.keepEditing}
+/>

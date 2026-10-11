@@ -24,6 +24,19 @@ import { toast, type ExternalToast } from 'svelte-sonner';
 export type NotificationId = string | number;
 
 /**
+ * what every error toast is raised with: it stands until the reader closes it, and carries the
+ * control that closes it ([[rules/interface]], *Feedback*).
+ *
+ * *Why per toast rather than on the toaster: an error is the only channel an act that failed has,
+ * and in the shared duration it was gone before it could be read (effort 861, requirement 3). A
+ * toaster-wide close control would also put one on every success, which leaves on its own.*
+ */
+const STANDS_UNTIL_CLOSED = {
+	duration: Number.POSITIVE_INFINITY,
+	closeButton: true
+} satisfies ExternalToast;
+
+/**
  * the toaster itself, for the mutation handlers that decide a toast's tone, detail, offer and
  * duration from a declaration. A surface does not reach for it: it announces through the
  * functions below, or through the declaration of the mutation it calls.
@@ -32,7 +45,7 @@ export const notify = {
 	success: (title: string, options?: ExternalToast): NotificationId =>
 		toast.success(title, options),
 	warning: (title: string): NotificationId => toast.warning(title),
-	error: (title: string): NotificationId => toast.error(title),
+	error: (title: string): NotificationId => toast.error(title, STANDS_UNTIL_CLOSED),
 	dismiss: (id: NotificationId) => {
 		toast.dismiss(id);
 	}
@@ -42,8 +55,8 @@ export const notify = {
  * show a thrown value as an error toast: the reader's sentence, and nothing else.
  *
  * **What the shell said behind it goes to diagnostics, not the toast.** It is the machine's
- * English whatever the reader's language ([[rules/interface]], *Error*), and a toast is read and
- * gone with no room for a disclosure to open in. Nobody acts on those words; they are what a person
+ * English whatever the reader's language ([[rules/interface]], *Error*), and a toast has no room
+ * for a disclosure to open in. Nobody acts on those words; they are what a person
  * quotes when asked what happened, and the diagnostics file is where that question is answered.
  *
  * for failures raised outside a mutation. a mutation reports through the shared
@@ -65,7 +78,7 @@ export function showErrorToast(error: unknown, translations: TranslationFunction
  * for a refusal decided in the interface rather than thrown, where there is no value to decode.
  */
 export function showErrorSentence(title: string) {
-	toast.error(title);
+	toast.error(title, STANDS_UNTIL_CLOSED);
 }
 
 /**

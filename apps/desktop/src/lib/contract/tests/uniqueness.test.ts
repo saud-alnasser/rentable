@@ -72,6 +72,7 @@ test('renewing into a government ID another holds is refused in today’s words'
 			contractId: contract.id,
 			start: term.start.getTime(),
 			end: term.end.getTime(),
+			cost: contract.cost,
 			govId: 'GOV-1'
 		});
 

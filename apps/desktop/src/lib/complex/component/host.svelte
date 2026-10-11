@@ -136,7 +136,7 @@
 	 * menu's own projection gives for it.
 	 */
 	async function answerAsked(actId: string, complexId: string) {
-		let complex: ComplexActRecord | undefined;
+		let complex: ComplexActRecord | null;
 
 		try {
 			complex = await readComplex(complexId);

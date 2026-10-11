@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
 import type { Host } from '$lib/app/host.ts';
 import { appRouter } from '$lib/app/router.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
-import { createApi, NOW, refusedWith, seedTenant } from '$lib/app/tests/testing.ts';
+import { createApi, monthsFromNow, NOW, refusedWith, seedTenant } from '$lib/app/tests/testing.ts';
 import { seedContract } from '$lib/contract/tests/seed.ts';
 import type { HeldByVersion } from '$lib/organization/host.ts';
 import {
@@ -198,4 +198,37 @@ test('at or above the write floor the same caller writes', async () => {
 	await api.contract.reconcile();
 
 	assert.equal((await api.contract.get({ id: contract.id }))?.status, 'active');
+});
+
+// effort 861, ticket 12: the link the reconcile recognises is written by the same pass, so below
+// the write floor it is held back with the derived columns, and the pair stays as it was.
+test('below the write floor the reconcile links no renewal', async () => {
+	const statements: string[] = [];
+	const db = createMemoryDatabase((statement) => statements.push(statement));
+	const writable = await createApi({ db });
+	const predecessor = await seedContract(writable, {
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1)
+	});
+	const successor = await writable.contract.create({
+		tenantId: predecessor.tenantId,
+		start: monthsFromNow(-1, 1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+	const held = caller(appRouter)(
+		await context({ db, clock: { now: () => NOW }, host: shellOnSouth([SOUTH_READ_ONLY]) })
+	);
+
+	statements.length = 0;
+	await held.contract.reconcile();
+
+	assert.deepEqual(writesIn(statements), [], 'the reconcile wrote below the write floor');
+	assert.equal((await held.contract.get({ id: successor.id }))?.renewsContractId, null);
+
+	// and the same pair is linked where the caller may write, so the test above was not vacuous.
+	await writable.contract.reconcile();
+
+	assert.equal((await held.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
 });

@@ -3,7 +3,8 @@ import test from 'node:test';
 
 import {
 	doesRenewalFollowPredecessor,
-	getContractRenewalTerm
+	getContractRenewalTerm,
+	getRenewedContractIds
 } from '$lib/contract/renewal/renewal.ts';
 
 const utc = (year: number, month: number, day: number) => Date.UTC(year, month - 1, day);
@@ -92,4 +93,18 @@ test('following is decided on whole UTC days, never on the time of day', () => {
 
 	assert.equal(doesRenewalFollowPredecessor(predecessorEnd, successorStart), true);
 	assert.equal(doesRenewalFollowPredecessor(predecessorEnd, utc(2025, 12, 31)), false);
+});
+
+// --- Which contracts are renewed --------------------------------------------------------
+
+// effort 861, requirement 7: a contract is renewed while a successor that is not terminated names
+// it, read from the rows a read already holds.
+test('a contract a standing successor names is renewed, and one a terminated successor names is not', () => {
+	const renewed = getRenewedContractIds([
+		{ renewsContractId: null, status: 'expired' },
+		{ renewsContractId: 'a', status: 'active' },
+		{ renewsContractId: 'c', status: 'terminated' }
+	]);
+
+	assert.deepEqual([...renewed], ['a']);
 });

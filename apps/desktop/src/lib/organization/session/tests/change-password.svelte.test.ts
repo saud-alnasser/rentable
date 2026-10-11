@@ -1,6 +1,6 @@
 import { DesignProvider } from '@rentable/design/strings.js';
-import { render, screen } from '@testing-library/svelte';
-import { expect, test } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -161,4 +161,76 @@ test('the current, the new and the confirmation each carry the eye', async () =>
 	for (const id of ['#password-current', '#password-next', '#password-confirmation']) {
 		await expectTheEye(document.querySelector<HTMLInputElement>(id), strings.showPassword);
 	}
+});
+
+/**
+ * A changed form asks before it closes (requirement 10 of
+ * [[efforts/861-the-app-never-shows-something-false/spec]], ticket 08). The dialog says whether
+ * anything was typed since it opened, and the surface asks on that: driven here through the
+ * dialog's own cancel, which reaches the surface's `requestClose`, and through Escape in a field.
+ * The question's words are the placeholder contract's, `{discard}` and `{keepEditing}`.
+ */
+const cancel = () => screen.getByRole('button', { name: en.common.actions.cancel });
+const question = () => document.querySelector('[data-confirm-dialog]');
+const type = (name: string, value: string) =>
+	fireEvent.input(document.querySelector<HTMLInputElement>(`input[name="${name}"]`)!, {
+		target: { value }
+	});
+
+test('a typed password asks before the dialog closes, by cancel or by Escape', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onOpenChange = vi.fn();
+
+	dialog({ onOpenChange });
+
+	await type('next', 'a longer secret');
+	await fireEvent.click(cancel());
+
+	await waitFor(() => expect(question()).not.toBeNull());
+	expect(question()?.textContent).toContain('{discard}');
+	expect(onOpenChange).not.toHaveBeenCalled();
+
+	await fireEvent.click(screen.getByRole('button', { name: '{keepEditing}' }));
+	await waitFor(() => expect(question()).toBeNull());
+
+	const field = document.querySelector<HTMLInputElement>('input[name="next"]')!;
+
+	field.focus();
+	await fireEvent.keyDown(field, { key: 'Escape' });
+
+	await waitFor(() => expect(question()).not.toBeNull());
+	expect(onOpenChange).not.toHaveBeenCalled();
+	expect(field.value).toBe('a longer secret');
+});
+
+test('an untouched dialog closes at once', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onOpenChange = vi.fn();
+
+	dialog({ onOpenChange });
+
+	await fireEvent.click(cancel());
+
+	await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+	expect(question()).toBeNull();
+});
+
+test('a password typed and erased again closes at once', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onOpenChange = vi.fn();
+
+	dialog({ onOpenChange });
+
+	await type('current', 'secret');
+	await type('current', '');
+	await fireEvent.click(cancel());
+
+	await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+	expect(question()).toBeNull();
 });

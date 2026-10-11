@@ -357,6 +357,17 @@ pub const WORKSPACE_STEPS: &[Step] = &[
         // every read of this build names `merged_into`, so a reader behind it is held.
         readers_need: true,
     },
+    // 0009: `renews_contract_id` on a contract, the contract a renewal continues, empty on every
+    // contract (effort 861, ticket 09). One column that may be empty changes nothing an older build
+    // reads or writes: it ignores the column, and only leaves the link out of a renewal, an undo or
+    // an export it makes, which the reconcile heals where the pair matches (requirement 6).
+    Step {
+        kind: Kind::Addition,
+        describes: "renewalLink",
+        shipped_before_857: false,
+        // every read of a contract on this build names the column, so a reader behind it is held.
+        readers_need: true,
+    },
 ];
 
 /// Every change of an organization's format, in the order of `TRANSITIONS`: `FORMAT_STEPS[i]` is
@@ -806,9 +817,10 @@ mod tests {
             ]
         );
 
+        // the additions declared after it (`0009`, effort 861's ticket 09) run on open beside it.
         let workspace = Ladder::Workspace.declared();
 
-        assert_eq!(workspace.on_open(8, &[]), vec![9]);
+        assert_eq!(workspace.on_open(8, &[])[0], 9);
         assert!(workspace.awaiting(Floors::legacy(7)).is_empty());
         assert_eq!(
             workspace.raised(Floors::legacy(7), &[8, 9], 9),
@@ -817,6 +829,63 @@ mod tests {
                 read: 7,
                 write: 7
             }
+        );
+    }
+
+    /// **Effort 861, ticket 09's first criterion, over the declaration** (requirement 5). `0009`
+    /// adds `renews_contract_id` to a contract, empty on every contract: an addition, so it moves
+    /// no floor and runs on open, and its SQL is the one column and nothing else, no backfill among
+    /// it. A reader needs it, since every read of a contract names the column, as a step adding a
+    /// column says (ticket 37 of effort 857).
+    #[test]
+    fn the_contract_a_renewal_continues_arrives_as_an_addition() {
+        use crate::database::floor::Floors;
+
+        let step = Ladder::Workspace.step(10).expect("0009 is declared");
+        let (name, sql) = apply::WORKSPACE_MIGRATIONS[9];
+
+        assert!(name.starts_with("0009"), "{name}");
+        assert_eq!(step.kind, Kind::Addition);
+        assert!(!step.shipped_before_857);
+        assert!(step.runs_on_open());
+        assert_eq!(step.describes, "renewalLink");
+        assert!(
+            step.readers_need,
+            "a reader's build reads renews_contract_id"
+        );
+        assert!(addition_sql_is_additive(sql), "{name} does more than add");
+        assert_eq!(
+            super::statements(sql),
+            vec![
+                [
+                    "ALTER",
+                    "TABLE",
+                    "CONTRACT",
+                    "ADD",
+                    "RENEWS_CONTRACT_ID",
+                    "TEXT"
+                ]
+                .map(String::from)
+                .to_vec()
+            ]
+        );
+
+        let workspace = Ladder::Workspace.declared();
+
+        assert_eq!(workspace.on_open(9, &[]), vec![10]);
+        assert_eq!(workspace.on_open(8, &[]), vec![9, 10]);
+        assert!(workspace.awaiting(Floors::legacy(7)).is_empty());
+        assert_eq!(
+            workspace.raised(Floors::legacy(7), &[8, 9, 10], 10),
+            Floors {
+                level: 10,
+                read: 7,
+                write: 7
+            }
+        );
+        assert_eq!(
+            workspace.legacy_after(7, workspace.raised(Floors::legacy(7), &[8, 9, 10], 10)),
+            7
         );
     }
 
@@ -1106,8 +1175,8 @@ mod tests {
         let workspace = Ladder::Workspace.declared();
         let format = Ladder::Format.declared();
 
-        // the workspace's ladder ends in `0007`, an addition: born at its level, with the floors
-        // `0006` declares, and the number builds before 857 read at 7, which they open.
+        // the workspace's ladder ends in additions, `0007` to `0009`: born at its level, with the
+        // floors `0006` declares, and the number builds before 857 read at 7, which they open.
         assert_eq!(
             workspace.born(),
             Floors {

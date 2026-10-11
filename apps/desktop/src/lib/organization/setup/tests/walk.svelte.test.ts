@@ -109,7 +109,7 @@ const stepButtons = () =>
 	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-setup-step] button'));
 
 /** whether a button is drawn prominent: the filled primary variant. */
-const isProminent = (button: HTMLElement) => button.className.includes('bg-primary');
+const isProminent = (button: HTMLElement) => button.classList.contains('bg-primary-fill');
 
 // effort 851, criteria 19 and 20: the password of the name step and of the existing-organization
 // step carry the eye, named by the string contract's word for it, at the trailing end in both

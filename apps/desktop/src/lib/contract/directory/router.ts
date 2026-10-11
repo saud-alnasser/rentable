@@ -19,6 +19,7 @@ import {
 	type ContractRankBounds,
 	type ContractRankOrder
 } from '$lib/contract/rank/rank';
+import { renewedColumn } from '$lib/contract/row';
 import { getExpectedAmountBy } from '$lib/contract/schedule/cycle';
 import { serializeContract, withRank } from '$lib/contract/serialize';
 import { permits } from '@rentable/workspace-permission';
@@ -30,6 +31,7 @@ import {
 	gte,
 	inArray,
 	lt,
+	not,
 	notInArray,
 	sql,
 	type AnyColumn,
@@ -154,7 +156,8 @@ function matchesRankBounds(bounds: ContractRankBounds): SQL | undefined {
 			? sql`${s.contract.paidAmount} < ${s.contract.expectedAmount}`
 			: undefined,
 		bounds.endFrom ? gte(s.contract.end, bounds.endFrom) : undefined,
-		bounds.endBefore ? lt(s.contract.end, bounds.endBefore) : undefined
+		bounds.endBefore ? lt(s.contract.end, bounds.endBefore) : undefined,
+		bounds.renewed === undefined ? undefined : bounds.renewed ? renewedColumn : not(renewedColumn)
 	);
 }
 
@@ -331,7 +334,10 @@ export default router({
 					tenantName: s.tenant.name,
 					tenantPhone: s.tenant.phone,
 					paymentCount: contractPaymentCount.as('paymentCount'),
-					unitNames: viewsUnit ? held.names : sql<null>`null`.as('unit_names')
+					unitNames: viewsUnit ? held.names : sql<null>`null`.as('unit_names'),
+					// what the rank and the renew act read; `contract` is read by that name, as the
+					// expression asks
+					renewed: renewedColumn
 				})
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
@@ -352,12 +358,13 @@ export default router({
 				.orderBy(...contractOrderBy(input.sort, viewsTenant));
 
 			const listed = contracts.map(
-				({ contract, tenantName, tenantPhone, paymentCount, unitNames }) =>
+				({ contract, tenantName, tenantPhone, paymentCount, unitNames, renewed }) =>
 					withRank(
 						{
 							...(viewsTenant
 								? serializeContract(contract, tenantName, tenantPhone)
 								: serializeContract(contract)),
+							renewed,
 							...(viewsPayment ? { paymentCount } : {}),
 							...(viewsUnit ? { unitNames: toUnitNames(unitNames) } : {})
 						},

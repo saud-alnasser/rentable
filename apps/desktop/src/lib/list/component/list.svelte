@@ -61,7 +61,10 @@
 		groupHeaderHeight = 36,
 		recordMinWidth,
 		emptyTitle,
-		emptyDescription
+		emptyDescription,
+		failed = false,
+		onRetry,
+		retrying = false
 	}: ListProps<TData, TGroup> = $props();
 
 	// the grid overscanned two rows of cards; a record row is a fraction of a card's height,
@@ -135,6 +138,10 @@
 	// why the list cannot be written to a file now: it shows nothing, and a file of no rows is not
 	// one anybody asked for ([[rules/interface]], *Export and import*).
 	const exportUnavailable = $derived(hasResults ? undefined : $LL.common.export.nothingToExport());
+	// a read that failed is offered no export: it would be refused as *nothing to export*, which
+	// says something about a set nobody could read ([[rules/interface]], *Empty*). It comes back
+	// once the read answers. The import stays, since it says nothing about what the set holds.
+	const exportName = $derived(failed ? undefined : exportAs?.name);
 	const isSearched = $derived(search.trim() !== '');
 	const isFiltered = $derived(hasAnyFilter(filters));
 
@@ -146,7 +153,9 @@
 		search = '';
 		filters = {};
 	}
-	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
+	// a failed read running again is still the failed state, with its *try again* busy, rather than
+	// a load: the control the reader pressed stays, and the focus with it.
+	const isAwaitingFirstResults = $derived(isLoading && !hasResults && !failed);
 
 	const virtualizer = createVirtualizer<HTMLElement, HTMLElement>({
 		count: 0,
@@ -208,7 +217,7 @@
 	<ListToolbar
 		bind:search
 		onSearch={commit.awaitSearch}
-		count={commit.displayed.length}
+		count={failed ? undefined : commit.displayed.length}
 		narrowed={isFiltered}
 		{sortOptions}
 		bind:sort
@@ -239,20 +248,21 @@
 			{/if}
 		{/snippet}
 
-		{#if exportAs || onImport}
+		{#if exportName !== undefined || onImport}
 			<TransferMenu
 				{listId}
 				{direction}
 				isExporting={listExport.isExporting}
-				onExport={exportAs ? () => listExport.ask(data, exportAs.name) : undefined}
+				onExport={exportName !== undefined ? () => listExport.ask(data, exportName) : undefined}
 				{exportUnavailable}
 				{onImport}
 				{importUnavailable}
 			/>
 		{/if}
 		<!-- last, at the end of the bar: the one place every set offers its create
-		     ([[rules/interface]], *Create*). -->
-		{#if onCreate}
+		     ([[rules/interface]], *Create*). Not while the read failed: it would ask to fill a set
+		     that may not be empty, and it comes back once the read answers (*Empty*). -->
+		{#if onCreate && !failed}
 			<CreateControl label={createLabel ?? ''} {onCreate} unavailable={createUnavailable} />
 		{/if}
 	</ListToolbar>
@@ -296,7 +306,7 @@
 				{/each}
 			{/snippet}
 
-			{#if !hasResults}
+			{#if failed || !hasResults}
 				<Empty
 					{listId}
 					{isSearched}
@@ -307,6 +317,9 @@
 					{onCreate}
 					{createLabel}
 					{createUnavailable}
+					{failed}
+					{onRetry}
+					{retrying}
 				/>
 			{:else}
 				<Rows

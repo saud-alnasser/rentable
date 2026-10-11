@@ -132,18 +132,23 @@ export function getDueSoonCycle(
 	return { due: next.due, amount: next.amount - next.covered };
 }
 
+/**
+ * Whether the contract is up for renewal: active or fulfilled, ending inside the notice window,
+ * and not renewed already. A contract a successor that still stands renews has had what this rank
+ * asks for done, so it is not up for renewal, wherever the rank is read (effort 861, requirement
+ * 7).
+ */
 export function isContractEndingSoon(
-	status: Contract['status'],
-	contractEnd: DateLike,
+	contract: Pick<ContractLike, 'status' | 'end' | 'renewed'>,
 	now: DateLike,
 	noticeWindowDays: number = DEFAULT_ENDING_SOON_NOTICE_DAYS
 ) {
-	if (!RENEWABLE_STATUSES.includes(status)) {
+	if (!RENEWABLE_STATUSES.includes(contract.status) || contract.renewed) {
 		return false;
 	}
 
 	const today = toUtcDay(now);
-	const end = toUtcDay(contractEnd);
+	const end = toUtcDay(contract.end);
 	const normalizedNoticeWindowDays = normalizeNoticeWindowDays(noticeWindowDays);
 
 	return (
@@ -164,7 +169,8 @@ export function isContractEndingSoon(
  * is not covered ({@link getDueSoonCycle}), and ending soon failing that. Each contract takes one
  * rank, the first in the ranks' own order: one owing today with a cycle coming due is ranked on
  * the money, and so is one owing money and ending inside the notice window,
- * {@link isContractEndingSoon} being what marks the second need on it.
+ * {@link isContractEndingSoon} being what marks the second need on it. A renewed contract is
+ * never ending soon, so it is filed on the money it owes or the cycle it has coming due alone.
  *
  * A terminated contract has no rank whatever it owes: termination locks the contract, so the debt
  * on one is a closed matter rather than work.
@@ -190,9 +196,7 @@ export function getContractRank(
 		return 'due-soon';
 	}
 
-	return isContractEndingSoon(contract.status, contract.end, now, noticeWindowDays)
-		? 'ending-soon'
-		: undefined;
+	return isContractEndingSoon(contract, now, noticeWindowDays) ? 'ending-soon' : undefined;
 }
 
 /**
@@ -229,6 +233,12 @@ export type ContractRankBounds = {
 	endFrom?: Date;
 	/** The first end date past the rank's window, exclusive. Open where absent. */
 	endBefore?: Date;
+	/**
+	 * What every contract in the rank is in whether it is renewed, which a read answers from the
+	 * renewal link (`renewedColumn` in `contract/row.ts`) rather than from a stored column. Either
+	 * where absent.
+	 */
+	renewed?: boolean;
 };
 
 /**
@@ -260,7 +270,9 @@ export function getContractRankBounds(
 			requiresUnpaidBalance: false,
 			endFrom: today,
 			// exclusive, and the window is inclusive of its last day, so it is the day after
-			endBefore: addUtcDays(today, normalizeNoticeWindowDays(noticeWindowDays) + 1)
+			endBefore: addUtcDays(today, normalizeNoticeWindowDays(noticeWindowDays) + 1),
+			// a renewed contract is not up for renewal (effort 861, requirement 7)
+			renewed: false
 		};
 	}
 

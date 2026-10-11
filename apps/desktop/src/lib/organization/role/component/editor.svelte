@@ -8,7 +8,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import MemberSectionHead from '$lib/organization/component/section-head.svelte';
 	import PermissionSwitches from '$lib/organization/role/component/permission-switches.svelte';
@@ -18,6 +18,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
+	import { untrack } from 'svelte';
 
 	/**
 	 * One role: what it is called and what everybody holding it may do (effort 838, requirements 4
@@ -81,14 +82,25 @@
 	let nameInvalid = $state<string | null>(null);
 	let mask = $state(0);
 
+	/** what a close would lose: the name and the switches. */
+	const edits = () => ({ name: chosenName, mask });
+
+	/** what the editor held when it opened, which a close is measured against. */
+	let opened = $state.raw<ReturnType<typeof edits>>();
+
 	// a fresh open starts on what the role holds, or on a member's flags for a new one.
 	$effect(() => {
 		if (open) {
 			chosenName = role?.kind === 'custom' ? role.name : '';
 			nameInvalid = null;
 			mask = role?.mask ?? newRoleMask(readerPermissions);
+			opened = untrack(() => $state.snapshot(edits()));
 		}
 	});
+
+	// a name typed or a switch turned asks before the editor closes, and one turned back is no
+	// change (effort 861, requirement 10).
+	const dirty = $derived(isDirty(opened, $state.snapshot(edits())));
 
 	const names = $derived(new Intl.ListFormat(getIntlLocale($locale), { type: 'conjunction' }));
 
@@ -124,6 +136,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={role ? $LL.common.actions.edit() : $LL.organization.roleList.newTitle()}
@@ -190,8 +203,8 @@
 		</Field.Set>
 	</div>
 
-	{#snippet actions()}
-		<Button type="button" variant="outline" disabled={isSaving} onclick={() => onOpenChange(false)}>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isSaving} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one. -->

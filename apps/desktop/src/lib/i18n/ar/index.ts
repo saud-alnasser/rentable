@@ -145,6 +145,8 @@ const ar = {
 			loadingRecord: 'جاري تحميل السجل...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			noMatch: 'لا يوجد ما يطابق',
+			readFailed: 'تعذر تحميل هذا',
+			readFailedDescription: 'حدث خطأ أثناء قراءته. لم يتغير شيء.',
 			recordNotFound: 'هذا السجل غير موجود',
 			recordNotFoundDescription: 'ربما حُذف.',
 			unexpectedError: 'حدث خطأ غير متوقع!',
@@ -260,6 +262,13 @@ const ar = {
 			description: 'لا يمكن التراجع عن هذا.',
 			undoable: 'يُحذف من مساحة العمل هذه. يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.',
 			unnamedRecord: 'هذا السجل'
+		},
+
+		discardDialog: {
+			description: 'لم تُحفظ تغييراتك بعد. لا شيء يعيدها بعد تجاهلها.',
+			discard: 'تجاهل',
+			keepEditing: 'متابعة التعديل',
+			title: 'تجاهل التغييرات؟'
 		}
 	},
 	layout: {
