@@ -90,3 +90,21 @@ test('a success toast carries no close control, since it leaves on its own', asy
 	expect(toast).toBeDefined();
 	expect(toast?.querySelector('[data-close-button]')).toBeNull();
 });
+
+// svelte-sonner puts the close control at a toast's top start corner, by custom properties its own
+// stylesheet sets on the toaster and reads as the physical left (`start`) and right (`end`); the
+// toaster's style is what moves it.
+test.each([
+	['ltr', 'right', 'unset', '0', 'translate(35%, -35%)'],
+	['rtl', 'left', '0', 'unset', 'translate(-35%, -35%)']
+] as const)(
+	'in a %s reading the close control sits at the top %s corner, where the reading ends',
+	async (direction, _corner, left, right, transform) => {
+		const toaster = await raised(direction, () => notify.error('the contract could not be saved.'));
+		const property = (name: string) => toaster?.style.getPropertyValue(name).trim();
+
+		expect(property('--toast-close-button-start')).toBe(left);
+		expect(property('--toast-close-button-end')).toBe(right);
+		expect(property('--toast-close-button-transform')).toBe(transform);
+	}
+);

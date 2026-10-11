@@ -11,6 +11,13 @@
 	let { ...restProps }: SonnerProps = $props();
 
 	const contract = useDesignContract();
+
+	// sonner reads `start` and `end` as the physical left and right.
+	const closeCorner = $derived(
+		contract.direction === 'rtl'
+			? '--toast-close-button-start: 0; --toast-close-button-end: unset; --toast-close-button-transform: translate(-35%, -35%);'
+			: '--toast-close-button-start: unset; --toast-close-button-end: 0; --toast-close-button-transform: translate(35%, -35%);'
+	);
 </script>
 
 <!--
@@ -43,6 +50,11 @@
 	`dir="auto"` from the document once and keeps it, so both are handed over from the contract and
 	follow a change of language. *Added by effort 861, requirement 4: the toaster stood at the bottom
 	right in Arabic, where every other surface mirrors.*
+
+	**The close control sits at the top end corner**, where a reading ends and where a window's own
+	close stands: the right in English, the left in Arabic. sonner puts it at the start; the
+	toaster's style moves it. *Added by effort 861, after the owner looked at the staged error
+	toast.*
 -->
 <Sonner
 	class="toaster group"
@@ -54,7 +66,8 @@
 	       --success-bg: color-mix(in oklab, var(--success) 8%, var(--popover)); --success-border: color-mix(in oklab, var(--success) 30%, transparent); --success-text: var(--success);
 	       --error-bg: color-mix(in oklab, var(--destructive) 8%, var(--popover)); --error-border: color-mix(in oklab, var(--destructive) 30%, transparent); --error-text: var(--destructive);
 	       --warning-bg: color-mix(in oklab, var(--warning) 8%, var(--popover)); --warning-border: color-mix(in oklab, var(--warning) 30%, transparent); --warning-text: var(--warning);
-	       --info-bg: color-mix(in oklab, var(--info) 8%, var(--popover)); --info-border: color-mix(in oklab, var(--info) 30%, transparent); --info-text: var(--info);"
+	       --info-bg: color-mix(in oklab, var(--info) 8%, var(--popover)); --info-border: color-mix(in oklab, var(--info) 30%, transparent); --info-text: var(--info);
+	       {closeCorner}"
 	{...restProps}
 	>{#snippet loadingIcon()}
 		<Loader2Icon class="size-4 animate-spin" />
