@@ -1,0 +1,15 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"identifier": "com.rentable.stage",
+	"build": {
+		"beforeDevCommand": "",
+		"devUrl": "http://localhost:1430"
+	},
+	"plugins": {
+		"deep-link": {
+			"desktop": {
+				"schemes": []
+			}
+		}
+	}
+}

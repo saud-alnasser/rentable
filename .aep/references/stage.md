@@ -4,19 +4,21 @@ use-when: "launching staging, writing a staged state, or photographing one"
 
 # Staging
 
-The real interface on mock data, with no Tauri process behind it: the owner steps through the
-states an effort's on-screen checks need ([[rules/staging]]). It lives in
+The real interface on mock data, in the app's own desktop window and with nothing behind it
+reaching the owner's data: the owner steps through the states an effort's on-screen checks need
+([[rules/staging]]). It lives in
 `apps/desktop/src/lib/prototype/stage/`, and every module there says what it is for.
 
 ## Running it
 
 | Command | What it does |
 | --- | --- |
-| `pnpm stage:open` | starts `vite dev --mode stage` on port 1430 and opens it in an Edge or Chrome app window at the desktop window's size, on a temp profile removed on exit, with extensions and sync off (Edge would otherwise sync the account's extensions in, and a dark mode one repaints the interface); reuses a stage server already running |
+| `pnpm stage:open` | starts `vite dev --mode stage` on port 1430 and opens it in the desktop shell, through `tauri dev --config tauri/tauri.stage.conf.json`: the app's own window, frame and WebView, under the identifier `com.rentable.stage`, registering no link scheme. The Rust build goes to `apps/desktop/tauri/target/stage` in the main checkout, shared by every worktree's stage, about two minutes the first time. The stage identifier's directories are removed on exit; reuses a stage server already running |
+| `pnpm stage:open --browser` | the same, in an Edge or Chrome app window at the desktop window's size instead, with no Rust build: on a temp profile removed on exit, with extensions and sync off (Edge would otherwise sync the account's extensions in, and a dark mode one repaints the interface) |
 | `pnpm stage:shots [prefix...] [--out <dir>]` | enters each state whose id starts with a prefix (every state with none) in English and Arabic, light and dark, each in a fresh headless context, and writes `<id>-<language>-<appearance>.png` to `.aep/scratch/stage/`; exits 1 when one stops short, throws, or asks any host but the stage server |
 
-`STAGE_BROWSER` names a Chromium browser where none is found; `STAGE_DEBUG_PORT` opens the window's
-DevTools port. Both run from the repository root or `apps/desktop`, and from any worktree.
+`STAGE_BROWSER` names a Chromium browser where none is found; `STAGE_DEBUG_PORT` sets the window's
+DevTools port (9232 for the desktop window by default, none for the browser's). Both run from the repository root or `apps/desktop`, and from any worktree.
 
 ## How it stands in for the shell
 
@@ -26,10 +28,14 @@ their adapter directly. **A new feature with a `tauri.ts` is added to `ADAPTERS`
 its reads reach the IPC mock and refuse.
 
 `host.ts` builds the host from `fakeHost()` (the tests' fakes, so `pnpm check` holds it to `Host`),
-answers what boot needs, and wraps it so a member it does not answer rejects naming itself. Every
-`invoke` lands in `mockIPC`: the database plugin's commands are answered from an in-memory sql.js
-engine built from the real migrations (`database.ts`), the window's own chrome is answered with
-nothing, and anything else rejects as `stage: the shell command <name> is not staged`.
+answers what boot needs, and wraps it so a member it does not answer rejects naming itself.
+`vite.js` also resolves `@tauri-apps/api/core`, for the application's own modules, to the real one
+with `invoke` taken from `ipc.ts`, which `host.ts` answers: the database plugin's commands from an
+in-memory sql.js engine built from the real migrations (`database.ts`), the window's own commands
+with nothing, and anything else rejected as `stage: the shell command <name> is not staged`. In
+the browser the same answer is installed as `mockIPC`; in the desktop window, whose IPC cannot be
+replaced, the window's own commands (`show`, `minimize`, `maximize`, `drag`, `close`) go to the
+shell, so its frame works as the app's does, and nothing else does.
 
 `record.ts` writes one workspace like a real one, the same on every boot: four complexes of ten
 units, thirty tenants (the last three with no contract), and contracts paid, overdue, ending,
@@ -90,10 +96,11 @@ screen.t.common.actions.edit() }`.
 
 ## What it cannot show
 
-Anything past the shell: the Tauri window's own frame and its native menus, file and print
-dialogs, the updater, a real sync or organization round trip, credentials, and the Rust side's
-own messages. Text is drawn by Chromium as WebView2 draws it, so a difference that only WebKit
-(macOS) would show is out of reach too. Such a check stays a check in the running app.
+Anything past the shell: native menus, file and print dialogs, the updater, a real sync or
+organization round trip, credentials, and the Rust side's own messages. The desktop window draws
+in the platform's own WebView, as the app does; the browser window and `stage:shots` draw in
+Chromium, which is WebView2's engine on Windows, so a difference that only WebKit (macOS) would
+show needs the desktop window on a Mac. Such a check stays a check in the running app.
 
 Established 2026-10-11 against Vite 8.2, SvelteKit 2.70, Svelte 5.56, sql.js 1.14 and Chrome 154 on
 Windows 11, effort 861.

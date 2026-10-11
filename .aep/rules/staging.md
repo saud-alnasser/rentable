@@ -38,9 +38,11 @@ bar, its label, and what to look at. The `_stage` worktree is removed once the o
 
 ## Mock data only
 
-Staging never reads or writes the owner's database, credentials, session or sync: there is no
-Tauri process behind it, and a state reaches its screen through mock records, host answers and
-on-screen steps, never through real data or a flag product code reads. A check staging cannot
+Staging never reads or writes the owner's database, credentials, session or sync: no command the
+interface sends reaches the shell but the window's own, and the shell it opens in runs under an
+identifier of its own, so none of the app's directories or data are its. A state reaches its
+screen through mock records, host answers and on-screen steps, never through real data or a flag
+product code reads. A check staging cannot
 show (what [[references/stage]] lists under *What it cannot show*) stays in `## Needs you` as a
 check in the running app, saying why it is not staged.
 

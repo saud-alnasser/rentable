@@ -15,6 +15,7 @@ import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import Bar from './bar.svelte';
 import { openStagedDatabase, type StagedDatabase } from './database';
 import { hold } from './held';
+import { answerWith } from './ipc';
 import { writeRecords } from './record';
 import { allStates, readSelection, type Selection, type State } from './state';
 
@@ -25,12 +26,23 @@ import { allStates, readSelection, type Selection, type State } from './state';
  * what staging puts in place of the shell. It is the first module the root layout's composition
  * root imports, so its top-level `await` below runs before any procedure can.
  *
- * **Nothing here reaches anything real.** No Tauri process runs; every `invoke` the frontend makes
- * lands in `mockIPC`, which answers the workspace database from the in-memory engine
- * (`./database`) and refuses every other command by name. The host is `fakeHost()` from the tests,
- * so the type checker holds it to the real port and each member it does not answer refuses naming
- * itself; the members startup needs are answered from the mock organization below.
+ * **Nothing here reaches anything real.** Every `invoke` the frontend makes lands in `mockIPC`,
+ * which answers the workspace database from the in-memory engine (`./database`) and refuses every
+ * other command by name. In the desktop window (`pnpm stage:open`) the one exception is the window
+ * itself: shown, dragged, minimized, maximized and closed through the shell, since it holds no
+ * data, and the shell behind it runs on a stage identifier of its own (`scripts/stage.mjs`).
+ *
+ * The host is `fakeHost()` from the tests, so the type checker holds it to the real port and each
+ * member it does not answer refuses naming itself; the members startup needs are answered from the
+ * mock organization below.
  */
+
+type ShellInvoke = (command: string, args: Record<string, unknown>) => Promise<unknown>;
+
+// the shell's own `invoke`, read before `mockIPC` replaces it: there is one in the desktop window,
+// none in a browser.
+const shell = (window as { __TAURI_INTERNALS__?: { invoke?: ShellInvoke } }).__TAURI_INTERNALS__
+	?.invoke;
 
 const selection = readSelection();
 const states = allStates();
@@ -94,10 +106,12 @@ function stagedHost(selection: Selection, state: State | undefined): Host {
 		...base,
 		window: {
 			...base.window,
-			show: async () => {},
-			hide: async () => {},
-			minimize: async () => {},
-			maximize: async () => {}
+			show: frame('show'),
+			hide: frame('hide'),
+			minimize: frame('minimize'),
+			maximize: frame('maximize'),
+			drag: frame('drag'),
+			close: frame('close')
 		},
 		// what the shell would write to the diagnostics file goes to the console: there is no file.
 		diagnostics: {
@@ -186,34 +200,45 @@ function rejecting<T>(port: T): T {
 	return port;
 }
 
+/** a command of the window's own: the window answers it where there is one, nothing where not. */
+function frame(name: string) {
+	return async () => {
+		await shell?.(`plugin:frame|${name}`, {});
+	};
+}
+
 function installIpc(database: StagedDatabase) {
+	const answer = (command: string, payload: unknown) => {
+		const args = (payload ?? {}) as Record<string, unknown>;
+
+		// the database plugin's two commands, a statement and a batch, told apart by what they
+		// carry: `platform/database/client.ts` is the one place that names them, and the client
+		// it builds is the one whose statements pass the rewrite.
+		if (command.startsWith('plugin:database|')) {
+			if ('queries' in args) {
+				return database.batch(args.queries as Parameters<StagedDatabase['batch']>[0]);
+			}
+
+			const { sql, params } = args.query as { sql: string; params: unknown[] };
+
+			return database.single(sql, params);
+		}
+
+		// the window's own chrome asks these as it draws; in a browser there is no window.
+		if (command.startsWith('plugin:frame|') || command.startsWith('plugin:window|')) {
+			return null;
+		}
+
+		throw new Error(`stage: the shell command ${command} is not staged`);
+	};
+
+	// the application's own modules reach it through `./ipc.ts`; in a browser, what Tauri's own
+	// modules send reaches it through the mocks, which cannot be installed over a shell's internals.
+	answerWith(answer);
+	if (shell) return;
+
 	mockWindows('main');
-	mockIPC(
-		(command, payload) => {
-			const args = (payload ?? {}) as Record<string, unknown>;
-
-			// the database plugin's two commands, a statement and a batch, told apart by what they
-			// carry: `platform/database/client.ts` is the one place that names them, and the client
-			// it builds is the one whose statements pass the rewrite.
-			if (command.startsWith('plugin:database|')) {
-				if ('queries' in args) {
-					return database.batch(args.queries as Parameters<StagedDatabase['batch']>[0]);
-				}
-
-				const { sql, params } = args.query as { sql: string; params: unknown[] };
-
-				return database.single(sql, params);
-			}
-
-			// the window's own chrome asks these as it draws; there is no window behind them.
-			if (command.startsWith('plugin:frame|') || command.startsWith('plugin:window|')) {
-				return null;
-			}
-
-			throw new Error(`stage: the shell command ${command} is not staged`);
-		},
-		{ shouldMockEvents: true }
-	);
+	mockIPC(answer, { shouldMockEvents: true });
 }
 
 function mountBar(

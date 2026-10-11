@@ -9,9 +9,11 @@ const lib = path.resolve(here, '../..');
 const appHost = path.join(lib, 'app', 'host.ts');
 const stageHost = path.join(here, 'host.ts');
 const held = path.join(here, 'held.ts').split(path.sep).join('/');
+const ipc = path.join(here, 'ipc.ts').split(path.sep).join('/');
 
 const MIGRATIONS = 'virtual:stage-migrations';
 const ADAPTER = 'stage-adapter:';
+const CORE = 'stage-core';
 
 /**
  * Every feature whose `tauri.ts` is its port's Tauri adapter, and so a way to the shell besides
@@ -36,12 +38,13 @@ const same = (a, b) => path.normalize(a).toLowerCase() === path.normalize(b).toL
  * The seam staging runs through, and the whole of it.
  *
  * **The cut is the shell.** Everything past `@tauri-apps/api/core`'s `invoke` is what reaches the
- * owner's database, credentials, session and sync, so staging runs the frontend on the dev server
- * with no Tauri process at all. Two kinds of module are swapped: the host the composition root
- * binds (`$lib/app/host`), for `./host.ts`, which answers it from mock data and installs the IPC
- * mocks every remaining `invoke` lands in; and each feature's Tauri adapter (`$lib/<feature>/tauri`),
- * which some reads call directly, for the matching port of that same host. No product module knows
- * staging exists.
+ * owner's database, credentials, session and sync, so no command the interface sends gets there,
+ * whether the frontend is drawn in a browser or in the shell's own window. Three kinds of module
+ * are swapped: the host the composition root binds (`$lib/app/host`), for `./host.ts`, which
+ * answers it from mock data; each feature's Tauri adapter (`$lib/<feature>/tauri`), which some
+ * reads call directly, for the matching port of that same host; and, for the application's own
+ * modules, `@tauri-apps/api/core`, whose `invoke` becomes `./ipc.ts`, answered by that host. No
+ * product module knows staging exists.
  *
  * **Applied only to `vite dev --mode stage`**, so a build, a test run and the ordinary dev server
  * resolve every module exactly as before, and nothing under this directory enters a bundle.
@@ -62,6 +65,12 @@ export function stage() {
 		}),
 		async resolveId(source, importer, options) {
 			if (source === MIGRATIONS) return `\0${MIGRATIONS}`;
+			if (source === '@tauri-apps/api/core') {
+				const from = path.normalize(importer?.split('?')[0] ?? '');
+				const own = from.toLowerCase().startsWith(lib.toLowerCase());
+
+				return own && !from.toLowerCase().startsWith(here.toLowerCase()) ? `\0${CORE}` : null;
+			}
 			if (!importer || !/(host|tauri)(\.ts)?$/.test(source)) return null;
 			if (same(importer.split('?')[0], stageHost)) return null;
 
@@ -76,6 +85,13 @@ export function stage() {
 			return feature ? `\0${ADAPTER}${feature}` : null;
 		},
 		load(id) {
+			if (id === `\0${CORE}`) {
+				return [
+					`export * from '@tauri-apps/api/core';`,
+					`export { invoke } from ${JSON.stringify(ipc)};`
+				].join('\n');
+			}
+
 			if (id.startsWith(`\0${ADAPTER}`)) {
 				const feature = id.slice(ADAPTER.length + 1);
 				const port = feature === 'platform' ? 'host' : `host[${JSON.stringify(feature)}]`;
