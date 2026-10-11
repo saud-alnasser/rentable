@@ -22,6 +22,19 @@ const BROWSERS = [
 	'/usr/bin/chromium'
 ];
 
+/**
+ * What keeps the owner's browser out of the window. A fresh profile alone does not: Edge signs it
+ * in to the Windows account and syncs that account's extensions into it, and a dark mode one
+ * repaints the interface. It still signs in, but with sync off nothing of the account comes in,
+ * and with no extension what is drawn is what the app draws.
+ */
+export const ISOLATED = [
+	'--disable-extensions',
+	'--disable-sync',
+	'--no-first-run',
+	'--no-default-browser-check'
+];
+
 /** a Chromium browser on this machine, `STAGE_BROWSER` where set; WebView2 is Chromium. */
 export function findBrowser(env = process.env) {
 	return env.STAGE_BROWSER ?? BROWSERS.find((path) => existsSync(path));

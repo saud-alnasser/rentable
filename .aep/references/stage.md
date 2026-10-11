@@ -12,7 +12,7 @@ states an effort's on-screen checks need ([[rules/staging]]). It lives in
 
 | Command | What it does |
 | --- | --- |
-| `pnpm stage:open` | starts `vite dev --mode stage` on port 1430 and opens it in an Edge or Chrome app window at the desktop window's size, on a temp profile removed on exit; reuses a stage server already running |
+| `pnpm stage:open` | starts `vite dev --mode stage` on port 1430 and opens it in an Edge or Chrome app window at the desktop window's size, on a temp profile removed on exit, with extensions and sync off (Edge would otherwise sync the account's extensions in, and a dark mode one repaints the interface); reuses a stage server already running |
 | `pnpm stage:shots [prefix...] [--out <dir>]` | enters each state whose id starts with a prefix (every state with none) in English and Arabic, light and dark, each in a fresh headless context, and writes `<id>-<language>-<appearance>.png` to `.aep/scratch/stage/`; exits 1 when one stops short, throws, or asks any host but the stage server |
 
 `STAGE_BROWSER` names a Chromium browser where none is found; `STAGE_DEBUG_PORT` opens the window's

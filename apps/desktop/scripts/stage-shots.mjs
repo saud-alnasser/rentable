@@ -5,6 +5,7 @@ import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import {
+	ISOLATED,
 	STAGE_PORT,
 	STAGE_URL,
 	findBrowser,
@@ -66,7 +67,7 @@ const chromium = spawn(
 		`--user-data-dir=${profile}`,
 		`--window-size=${width},${height}`,
 		'--hide-scrollbars',
-		'--no-first-run',
+		...ISOLATED,
 		'about:blank'
 	],
 	{ stdio: 'ignore' }

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+	ISOLATED,
 	STAGE_URL,
 	findBrowser,
 	stageServing,
@@ -61,8 +62,7 @@ viewer = spawn(
 		`--app=${STAGE_URL}`,
 		`--user-data-dir=${profile}`,
 		`--window-size=${width},${height}`,
-		'--no-first-run',
-		'--no-default-browser-check',
+		...ISOLATED,
 		...debug
 	],
 	{ stdio: 'ignore' }
