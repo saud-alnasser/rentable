@@ -1,5 +1,53 @@
 # rentable
 
+## 0.21.1
+
+### Patch Changes
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - in Arabic, the days of the week across the top of a date picker each show their own letter, where every one read the same two letters before; and a chosen day at either edge of the week is a full circle like the rest
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - while a list could not be loaded, the bar above it no longer offers to add a record or to export, and no longer says there is nothing to export; both come back once the list loads
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace page whose members could not be loaded now says so and offers to try again, instead of telling you nobody holds the workspace
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a list that could not be loaded now says so and offers to try again, instead of telling you there is nothing there yet and offering to add the first one; this covers the tenants, complexes, units, contracts, a tenant's or a unit's contracts, a record's history and a contract's payments
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the text of a success, error, warning or information message is now easier to read against the light colour behind it in the light appearance
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - choosing another period on the home screen no longer shows the period you left under the new one's name: its figures and the lists below them show as loading until the new period's figures arrive, and the period control stays where it was
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a tenant, complex, unit, contract, payment or workspace page that could not be loaded now says so and offers to try again, instead of telling you the record does not exist; a record that really is gone still says it does not exist
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - renewing a contract now lets you change the rent: the cost starts at the old contract's and the new contract keeps whatever you enter, while the old one stays as it was; a renewal also remembers which contract it renews, and a contract that is already renewed cannot be renewed a second time
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a contract you have already renewed no longer shows as ending soon on the dashboard, in the contracts list or in the command menu, and renew is no longer offered on it; if you delete or terminate the renewal, the contract shows as ending soon again
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - editing a contract's dates no longer lets a renewal start on or before the day the contract it renews ends, from either side: moving the renewal's start back, or the renewed contract's end forward past a renewal still in place, is refused as renewing is, so a renewed contract stays renewed after a workspace export and import
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace export now names, in a new Renews column on the contracts sheet, the contract each renewal continues, and importing the file keeps that link; a Renews entry that names no contract in the file or the workspace is skipped without turning the row away, and a file without the column imports as before
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - importing a workspace file no longer lets a Renews entry link a renewal that could not have been made: an entry naming a contract that ends on or after the renewal starts, or one another renewal already continues, is skipped without turning the row away, so an edited file cannot make two contracts renew each other or give one contract two renewals
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the contract, tenant, payment, complex, unit, organization, workspace and new member forms ask before closing once you have changed something in them, and an edit, duplicate or renewal you have not touched closes at once
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - an error message now stays on screen until you close it, with a close button at its top corner on the side the text ends, instead of disappearing before you can read it; messages also appear at the bottom left in Arabic and the bottom right in English
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the words on blue and red buttons and badges, on a field's error, and on a selected day or a checked box are easy to read in light and dark mode: those colours are a little deeper, most of all in dark mode, so the white text on them stands out
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a contract that starts the day after another ends, for the same tenant and the same units, is now recognised as its renewal, including renewals made before this version, by an older version, or in an imported file; where more than one contract could be the renewal, none is taken as one
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the home screen now says, in its middle, when you have no permission to view anything on it, and who can let you, instead of standing empty
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the home screen no longer shows zero collected, zero due and nothing to chase while it is still loading or when it could not be loaded; it shows its loading shape until the figures arrive, and if they could not be read it says so and offers to try again; a figure you are not allowed to see is left off instead of showing as zero, and without access to contracts the home screen no longer says there is nothing to chase
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - on the home screen, the collected card no longer takes you to the contracts if you are not allowed to see contracts; it still shows the figures you may see
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a member, a role, a workspace's members and permissions, a member's link, handing over or accepting the organization, deleting it and changing your password now ask before closing once you have changed something, and close at once when you have not
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - when you press try again on something that could not be loaded, the button now shows it is working until the answer arrives, keeps your place, and does nothing if pressed again in the meantime
+
+- [#862](https://github.com/saud-alnasser/rentable/pull/862) [`c94e697`](https://github.com/saud-alnasser/rentable/commit/c94e697c7a6bf2df1c82c21784dfaa026067896c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - undo and redo on a message are now drawn in the message's own colour, as an outlined button
+
 ## 0.21.0
 
 ### Minor Changes
