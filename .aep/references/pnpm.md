@@ -149,7 +149,7 @@ pnpm dev                          # the desktop app; see tauri.md
 pnpm dev:desktop                  # the same, unaliased
 pnpm dev:web                      # vite only, port 1420 (strict) — no desktop window
 pnpm prototype /contracts?create  # the desktop app, opened on one route; see tauri.md
-pnpm stage                        # the interface on mock data, port 1430, no shell; see stage.md
+pnpm stage:open                   # the interface on mock data, port 1430, no shell; see stage.md
 pnpm stage:shots 861.             # those staged states, photographed in both languages and appearances
 ```
 

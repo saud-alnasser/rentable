@@ -32,7 +32,7 @@ like any other found one. What each state showed, in each language and appearanc
 
 ## Then the owner gets the window and the list
 
-The hand-off runs `pnpm stage` from the `_stage` worktree, which opens a window (opening it is
+The hand-off runs `pnpm stage:open` from the `_stage` worktree, which opens a window (opening it is
 not driving the app: the owner steps through it), and gives the list: each state's number on the
 bar, its label, and what to look at. The `_stage` worktree is removed once the owner has looked.
 

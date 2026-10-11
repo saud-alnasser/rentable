@@ -188,7 +188,7 @@ function moduleOf(label: string) {
 
 // Every source file under `src/lib/`, labelled from it. A `tests/` directory covers the rules
 // rather than obeying them, so it is left out. So is `prototype/stage/`, on the same ground: it is
-// the tests' fakes and the domain's own record shapes run in a window (`pnpm stage`), resolved only
+// the tests' fakes and the domain's own record shapes run in a window (`pnpm stage:open`), resolved only
 // by `vite dev --mode stage` and in no bundle, so it reaches into every feature as a test does.
 function libraryFiles() {
 	return readdirSync(LIB_ROOT, { recursive: true, withFileTypes: true })

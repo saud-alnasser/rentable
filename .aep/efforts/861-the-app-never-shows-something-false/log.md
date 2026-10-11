@@ -52,11 +52,12 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - converge: rules/interface Form surface could name seed (schema forms) and isDirty (the others) as how a form reports its changes
 - staging: the layers rule leaves prototype/stage/ out as it leaves tests/ out; the database-client rule is kept, the stage telling the plugin's two commands apart by their arguments
 - staging found 29 (calendar header and edge day) in ticket 01's state; fixed in the effort
+- staging: the launcher is `pnpm stage:open`, since pnpm 12 answers the bare `pnpm stage` with its own publish-staging command; found at the hand-off
 - converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
 
 ## Needs you
 
-The on-screen items are staged: `pnpm stage` in `.aep/worktrees/861-the-app-never-shows-something-false/_stage` opens them, numbered as the bar numbers them, on mock data; what the run saw in each is [[efforts/861-the-app-never-shows-something-false/evidence/staging/needs-you]].
+The on-screen items are staged: `pnpm stage:open` in `.aep/worktrees/861-the-app-never-shows-something-false/_stage` opens them, numbered as the bar numbers them, on mock data; what the run saw in each is [[efforts/861-the-app-never-shows-something-false/evidence/staging/needs-you]].
 
 - ticket 02, staged as state 1 (error toast stays): the error toast is still up after ten seconds, closes from its X, and sits bottom-left in Arabic and bottom-right in English
 - ticket 01, staged as states 3 to 5 (destructive fill; permitted and primary fills; checked boxes and badges): judge the new primary, destructive and permitted fills, light and dark (buttons, badges, a selected day, a checked box, the rail mark)

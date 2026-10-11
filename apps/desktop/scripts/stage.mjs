@@ -15,7 +15,7 @@ import {
  * Opens staging: the real interface on mock data, with no Tauri process behind it.
  *
  * ```bash
- * pnpm stage
+ * pnpm stage:open
  * ```
  *
  * Starts the dev server in stage mode (`src/lib/prototype/stage/vite.js`) and opens it in a

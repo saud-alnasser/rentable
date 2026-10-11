@@ -306,7 +306,7 @@ process at all, and answers `invoke` itself. Nothing in product code knows about
   (find by role or text, click, type, press) after the route draws.
 - **Bar.** Like `prototype/switcher.svelte`, dev-only and deliberately unlike the product: prev,
   `n/N` and label, next, the look-at line, and EN/AR and light/dark toggles.
-- **Launch.** `pnpm stage` from the desktop package (and the root alias) starts the dev server in
+- **Launch.** `pnpm stage:open` from the desktop package (and the root alias) starts the dev server in
   stage mode and opens Edge with `--app`, a throwaway profile in the OS temp dir, and the app's
   1124 x 824 window size.
 
