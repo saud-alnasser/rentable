@@ -63,6 +63,16 @@
 		await screen.find('header button[aria-label]');
 	};
 
+	// the owner gets here by pointer, after which what the app focuses wears no ring; reached by
+	// script, Chromium rings it. Focus stays where the steps left it, drawn as the owner will see it.
+	const unring = () => {
+		const focused = document.activeElement;
+		if (!(focused instanceof HTMLElement) || !focused.matches(':focus-visible')) return;
+
+		focused.blur();
+		focused.focus({ preventScroll: true, focusVisible: false });
+	};
+
 	onMount(() => {
 		const state = current;
 		if (!state) return;
@@ -73,6 +83,7 @@
 			const screen = createScreen();
 			if (window.location.pathname !== state.route) await screen.go(state.route);
 			await state.steps?.(screen);
+			unring();
 			reached = true;
 		};
 

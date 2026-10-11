@@ -75,6 +75,8 @@ screen.t.common.actions.edit() }`.
 - **A focus ring needs a real key, a toast stack a real pointer.** `:focus-visible` ignores a
   script's key event, and the toaster spreads only on real hover. Name the act in `owner`: the
   look line asks the owner for it, and `stage:shots` does it through the browser's own input.
+  The other way round, Chromium rings what a script focuses before any pointer is used, so once
+  the steps end the bar takes the ring off what they left focused, as the owner's pointer would.
 - **The toaster shows three at once**, and a toast that is not an error leaves after a few
   seconds; raise one with `duration: Number.POSITIVE_INFINITY` to hold it.
 - **A failure has to come from the app's own path.** To show a failed save, make the staged
