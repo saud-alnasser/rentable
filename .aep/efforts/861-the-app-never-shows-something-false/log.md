@@ -62,6 +62,7 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - staging: the launcher is `pnpm stage:open`, since pnpm 12 answers the bare `pnpm stage` with its own publish-staging command; found at the hand-off
 - the owner, on staging: open it as the app's desktop window, from development only, with no entry code changed; found 31. The shell's IPC cannot be mocked, so the application's own `@tauri-apps/api/core` resolves to a staged `invoke`, and the shell runs under its own identifier
 - the owner, on staged state 12: the empty landing says in its middle what is happening; found 32
+- the owner, on the staged landing message: it speaks of permissions, not roles, in both languages
 - the owner, on the staged undo toast: its undo and redo look plain; found 33, staged as state 13
 - converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
 
@@ -73,7 +74,7 @@ The on-screen items are staged: `pnpm stage:open` in `.aep/worktrees/861-the-app
 - ticket 01, staged as states 3 to 5 (destructive fill; permitted and primary fills; checked boxes and badges): judge the new primary, destructive and permitted fills, light and dark (buttons, badges, a selected day, a checked box, the rail mark)
 - ticket 06, staged as state 6 (discard question): after a change and Escape, the discard question opens with keep editing focused and its focus ring showing
 - ticket 07, staged as states 7 to 11 (each form, untouched): the tenant form, the contract form (edit, renew, duplicate) and the payment form close at once when untouched and ask after a field changes
-- ticket 32, staged as state 12 (landing, may view nothing): a member who may view none of contracts, payments or units is told so in the middle of the landing screen; judge the words in both languages
+- ticket 32, staged as state 12 (landing, may view nothing): a member who may view none of contracts, payments or units is told in the middle of the landing screen that they have no permission to view anything there
 - ticket 33, staged as state 13 (undo on a toast): undo on the success toast is a green outlined pill, firmer under the pointer, light and dark
 - changelog: the renewal features (renew may change the rent, an export carries the link, earlier renewals recognised) are patch; say if they should be minor
 - 0009 is declared readers_need true, as the plan chose: a member with a read-only grant cannot open a version-9 workspace on this build until someone with full access opens it on the new version; accept, or make the step not need readers

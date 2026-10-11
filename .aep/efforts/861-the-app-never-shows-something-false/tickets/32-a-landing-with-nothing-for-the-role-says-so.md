@@ -2,13 +2,13 @@
 status: resolved
 ---
 
-# feat(desktop): a landing screen with nothing for the reader's role says so
+# feat(desktop): a landing screen with nothing the reader may view says so
 
 Authoritative: [[efforts/861-the-app-never-shows-something-false/spec]] (requirement 2: the app states no figure it does not know). The owner's answer to the converge question on staged state 12: the empty landing should say in its middle what is happening.
 
 ## Outcome
 
-A member whose role may view none of contracts, payments and units sees, in the middle of the landing screen, that nothing on it is open to their role, what it shows, and who can change that.
+A member with no permission to view contracts, payments or units sees, in the middle of the landing screen, that they have no permission to view anything there, what it shows, and that someone who can edit their permissions can let them. The words speak of permissions in both languages, as the owner asked on looking.
 
 ## Acceptance Criteria
 

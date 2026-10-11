@@ -2309,11 +2309,11 @@ type RootTranslation = {
 		}
 		nothingPermitted: {
 			/**
-			 * i​t​ ​s​h​o​w​s​ ​c​o​n​t​r​a​c​t​s​,​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​u​n​i​t​s​,​ ​a​n​d​ ​y​o​u​r​ ​r​o​l​e​ ​c​a​n​ ​v​i​e​w​ ​n​o​n​e​ ​o​f​ ​t​h​e​m​.​ ​w​h​o​e​v​e​r​ ​m​a​n​a​g​e​s​ ​r​o​l​e​s​ ​c​a​n​ ​c​h​a​n​g​e​ ​t​h​a​t​.
+			 * i​t​ ​s​h​o​w​s​ ​c​o​n​t​r​a​c​t​s​,​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​u​n​i​t​s​.​ ​s​o​m​e​o​n​e​ ​w​h​o​ ​c​a​n​ ​e​d​i​t​ ​y​o​u​r​ ​p​e​r​m​i​s​s​i​o​n​s​ ​c​a​n​ ​l​e​t​ ​y​o​u​ ​v​i​e​w​ ​t​h​e​m​.
 			 */
 			description: string
 			/**
-			 * n​o​t​h​i​n​g​ ​o​n​ ​t​h​i​s​ ​s​c​r​e​e​n​ ​i​s​ ​o​p​e​n​ ​t​o​ ​y​o​u​r​ ​r​o​l​e​.
+			 * y​o​u​ ​h​a​v​e​ ​n​o​ ​p​e​r​m​i​s​s​i​o​n​ ​t​o​ ​v​i​e​w​ ​a​n​y​t​h​i​n​g​ ​h​e​r​e​.
 			 */
 			title: string
 		}
@@ -7947,11 +7947,11 @@ export type TranslationFunctions = {
 		}
 		nothingPermitted: {
 			/**
-			 * it shows contracts, payments and units, and your role can view none of them. whoever manages roles can change that.
+			 * it shows contracts, payments and units. someone who can edit your permissions can let you view them.
 			 */
 			description: () => LocalizedString
 			/**
-			 * nothing on this screen is open to your role.
+			 * you have no permission to view anything here.
 			 */
 			title: () => LocalizedString
 		}

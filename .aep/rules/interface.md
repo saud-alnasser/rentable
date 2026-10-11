@@ -255,8 +255,9 @@ view contracts, and elsewhere draws the same figures with no link. *Ticket 16 of
 **Nor is a screen left blank for a reader who may view none of it.** Where the read answered and
 the reader may view none of contracts, payments and units, so neither the band nor a section has
 anything to draw, the screen says so in the middle (*Not permitted*, under *Empty*): what it shows,
-that the reader's role views none of it, and that whoever manages the organization's roles can
-change that. *Ticket 32 of the same effort, after the owner looked at the staged empty landing.*
+that the reader has no permission to view any of it, and that someone who can edit their
+permissions can let them. It speaks of permissions, in both languages, never of roles: a member's
+permissions are their role's and their own overrides together. *Ticket 32 of the same effort, after the owner looked at the staged empty landing.*
 
 ### Settings section
 
@@ -1451,10 +1452,10 @@ five situations it is, on `data-empty`, and the five never read the same:
   again* is then `aria-busy`, its glyph turns as the update check's does and holds still for a
   reader who asked for less motion, a second press asks for nothing, and it is never disabled, so
   it keeps the focus it had. *Ticket 15 of the same effort.*
-- **Not permitted.** What belongs here is all of a kind the reader's role may not view, so nothing
-  is drawn of it, and a blank would read as a screen that broke. The title says the region holds
-  nothing open to the reader's role, the line says what it shows and who can open it to them, and
-  there is no act, since nothing the reader can press changes a role. It is said only under a read
+- **Not permitted.** What belongs here is all of a kind the reader has no permission to view, so
+  nothing is drawn of it, and a blank would read as a screen that broke. The title says the reader
+  has no permission to view anything here, the line says what it shows and who can let them view
+  it, and there is no act, since nothing the reader can press changes their permissions. It is said only under a read
   that answered. Today the landing screen draws it (*Landing screen*). *Ticket 32 of
   [[efforts/861-the-app-never-shows-something-false/spec]].*
 

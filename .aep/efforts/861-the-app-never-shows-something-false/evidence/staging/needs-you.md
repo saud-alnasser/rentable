@@ -72,9 +72,10 @@ asking after a change is the owner's to do in the window, as the look line says.
 
 A member, `sam.member`, who may view no contracts, payments or units: the rail offers Dashboard,
 Tenants and Complexes, and the main area was empty. Asked what it should show, the owner had it
-say what is happening in its middle (ticket 32): it now reads "nothing on this screen is open to
-your role." over what the screen shows and who can change that, centred in the window, in English
-and Arabic.
+say what is happening in its middle (ticket 32), in the words of permissions rather than roles:
+it now reads "you have no permission to view anything here." over what the screen shows and that
+someone who can edit your permissions can let you view it, centred in the window, in English and
+Arabic.
 
 ## 13. undo on a toast (ticket 33)
 

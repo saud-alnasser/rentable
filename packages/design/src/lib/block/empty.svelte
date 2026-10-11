@@ -12,7 +12,7 @@
 	 *   way back.
 	 * - `failed`: the read of what belongs here failed, so whether there is anything is not known.
 	 *   Its act reads it again.
-	 * - `not-permitted`: what belongs here is all of a kind the reader's role may not view, so
+	 * - `not-permitted`: what belongs here is all of a kind the reader has no permission to view, so
 	 *   nothing is drawn of it. The words say what the region shows and who can open it to them.
 	 */
 	export type EmptyKind = 'nothing-yet' | 'no-match' | 'not-found' | 'failed' | 'not-permitted';

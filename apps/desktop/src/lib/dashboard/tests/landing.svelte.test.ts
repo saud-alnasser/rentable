@@ -662,7 +662,7 @@ test('without contracts, neither outstanding, the sections nor nothing to chase 
 // rather than left at a blank; one who may view any of it is shown that instead.
 const notPermitted = () => document.querySelector('[data-empty="not-permitted"]');
 
-test('without contracts, payments or units, the screen says it holds nothing open to the role', async () => {
+test('without contracts, payments or units, the screen says there is no permission to view anything', async () => {
 	holdEveryFlagBut('viewContract', 'viewPayment', 'viewUnit');
 	reads({ ...answer([], []), summary: { money: {} } });
 

@@ -2,4 +2,4 @@
 '@rentable/desktop': patch
 ---
 
-the home screen now says, in its middle, when your role can view none of what it shows, and who can change that, instead of standing empty
+the home screen now says, in its middle, when you have no permission to view anything on it, and who can let you, instead of standing empty
