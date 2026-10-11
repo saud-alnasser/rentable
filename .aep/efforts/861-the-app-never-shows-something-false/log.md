@@ -52,6 +52,8 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - converge: rules/interface Form surface could name seed (schema forms) and isDirty (the others) as how a form reports its changes
 - staging: the layers rule leaves prototype/stage/ out as it leaves tests/ out; the database-client rule is kept, the stage telling the plugin's two commands apart by their arguments
 - staging found 29 (calendar header and edge day) in ticket 01's state; fixed in the effort
+- staging: Edge synced the owner's extensions into the stage window's fresh profile, and a dark mode one repainted light; the window and the shots now run with extensions and sync off
+- the owner, on the staged error toast: its X moves to the top end corner, where the reading ends; the provider test reads the toaster's properties, and only the staged shot shows where the X lands
 - staging: the launcher is `pnpm stage:open`, since pnpm 12 answers the bare `pnpm stage` with its own publish-staging command; found at the hand-off
 - converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
 

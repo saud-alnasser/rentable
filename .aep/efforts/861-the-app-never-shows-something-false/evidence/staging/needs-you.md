@@ -23,9 +23,11 @@ follows, by the number the bar gives the state.
 ## 1. error toast stays (ticket 02)
 
 A save the staged database refuses raises "unexpected error occurred!" through the app's own
-path. It sits bottom right in English and bottom left in Arabic, with its X at the toast's
-leading top corner in each, and its text reads on the error wash in light and dark. That it is
-still up after ten seconds is the owner's to watch in the window.
+path. It sits bottom right in English and bottom left in Arabic, and its text reads on the error
+wash in light and dark. That it is still up after ten seconds is the owner's to watch in the
+window. Its X stood at the toast's top start corner; on looking, the owner had it moved to the
+top end corner, where the reading ends (top right in English, top left in Arabic), and the shots
+were taken again.
 
 ## 2. four toast tones (ticket 24)
 
