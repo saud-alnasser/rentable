@@ -11,7 +11,8 @@
 		value = $bindable(),
 		placeholder = $bindable(),
 		class: className,
-		weekdayFormat = 'short',
+		// narrow, as the system's own date pickers: the short form is the whole word in Arabic.
+		weekdayFormat = 'narrow',
 		buttonVariant = 'ghost',
 		captionLayout = 'label',
 		locale = 'en-US',
@@ -82,9 +83,9 @@ get along, so we shut typescript up by casting `value` to `never`.
 					<Calendar.Grid>
 						<Calendar.GridHead>
 							<Calendar.GridRow class="select-none">
-								{#each weekdays as weekday (weekday)}
+								{#each weekdays as weekday, index (index)}
 									<Calendar.HeadCell>
-										{weekday.slice(0, 2)}
+										{weekday}
 									</Calendar.HeadCell>
 								{/each}
 							</Calendar.GridRow>
