@@ -35,6 +35,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 29 a-date-picker-reads-in-arabic-and-a-chosen-day-is-round 2/2
 [x] 27 every-effort-hands-its-on-screen-checks-over-staged 3/3
 [x] 28 this-efforts-on-screen-checks-are-staged 3/3
+[x] 30 an-error-toast-closes-from-its-x-over-an-open-form 2/2
 
 ## Rounds
 
@@ -54,6 +55,7 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - staging found 29 (calendar header and edge day) in ticket 01's state; fixed in the effort
 - staging: Edge synced the owner's extensions into the stage window's fresh profile, and a dark mode one repainted light; the window and the shots now run with extensions and sync off
 - the owner, on the staged error toast: its X moves to the top end corner, where the reading ends; the provider test reads the toaster's properties, and only the staged shot shows where the X lands
+- staging: the owner pressed the staged error toast's X and nothing happened; found 30 (a modal dialog's pointer-events reached the toaster), fixed in the effort
 - staging: the launcher is `pnpm stage:open`, since pnpm 12 answers the bare `pnpm stage` with its own publish-staging command; found at the hand-off
 - converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
 

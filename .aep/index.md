@@ -143,7 +143,7 @@ Start at [[protocol]].
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
 | 857-updating-never-locks-a-member-out | implemented | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 41 |
-| 861-the-app-never-shows-something-false | accepted | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 29 |
+| 861-the-app-never-shows-something-false | accepted | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 30 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -695,3 +695,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/861-the-app-never-shows-something-false/tickets/27-every-effort-hands-its-on-screen-checks-over-staged]] docs(aep): every effort hands its on-screen checks over staged | 861-the-app-never-shows-something-false | resolved | 26 |
 | [[efforts/861-the-app-never-shows-something-false/tickets/28-this-efforts-on-screen-checks-are-staged]] docs(861-the-app-never-shows-something-false): this effort's on-screen checks are staged | 861-the-app-never-shows-something-false | resolved | 27 |
 | [[efforts/861-the-app-never-shows-something-false/tickets/29-a-date-picker-reads-in-arabic-and-a-chosen-day-is-round]] fix(design): a date picker names each weekday in Arabic, and a chosen day is round at the edges | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/30-an-error-toast-closes-from-its-x-over-an-open-form]] fix(design): an error toast closes from its X over an open form | 861-the-app-never-shows-something-false | resolved | — |

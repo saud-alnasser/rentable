@@ -27,7 +27,9 @@ path. It sits bottom right in English and bottom left in Arabic, and its text re
 wash in light and dark. That it is still up after ten seconds is the owner's to watch in the
 window. Its X stood at the toast's top start corner; on looking, the owner had it moved to the
 top end corner, where the reading ends (top right in English, top left in Arabic), and the shots
-were taken again.
+were taken again. Pressing that X closed nothing: the open form's dialog had turned pointer events off
+under the toaster. Fixed as ticket 30, a real click on it now closes the toast and leaves the
+changed form open, with no discard question.
 
 ## 2. four toast tones (ticket 24)
 
