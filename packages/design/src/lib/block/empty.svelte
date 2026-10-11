@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 
 	/**
-	 * Which of the four things a region with nothing in it is saying.
+	 * Which of the five things a region with nothing in it is saying.
 	 *
 	 * - `nothing-yet`: the set holds nothing, and the words say what it will hold. Its act is the
 	 *   set's create, where the set can be added to.
@@ -12,8 +12,10 @@
 	 *   way back.
 	 * - `failed`: the read of what belongs here failed, so whether there is anything is not known.
 	 *   Its act reads it again.
+	 * - `not-permitted`: what belongs here is all of a kind the reader's role may not view, so
+	 *   nothing is drawn of it. The words say what the region shows and who can open it to them.
 	 */
-	export type EmptyKind = 'nothing-yet' | 'no-match' | 'not-found' | 'failed';
+	export type EmptyKind = 'nothing-yet' | 'no-match' | 'not-found' | 'failed' | 'not-permitted';
 
 	/** What every kind takes. */
 	type EmptyRegion = {
@@ -66,7 +68,7 @@
 	 *
 	 * **An empty region leads.** It says what the region is for and offers the act that fills it,
 	 * or the act that undoes what emptied it, so a reader is never left at a blank with no next
-	 * step. The four kinds never read the same: a set with nothing in it yet and a search that
+	 * step. The five kinds never read the same: a set with nothing in it yet and a search that
 	 * matched nothing are different situations with different ways out, and one sentence for both
 	 * (the old "no results") told the reader neither.
 	 *

@@ -658,6 +658,32 @@ test('without contracts, neither outstanding, the sections nor nothing to chase 
 	expect(document.querySelector('[data-dashboard-section]')).toBeNull();
 });
 
+// ticket 32 of effort 861: a reader who may view none of what the screen is made of is told so,
+// rather than left at a blank; one who may view any of it is shown that instead.
+const notPermitted = () => document.querySelector('[data-empty="not-permitted"]');
+
+test('without contracts, payments or units, the screen says it holds nothing open to the role', async () => {
+	holdEveryFlagBut('viewContract', 'viewPayment', 'viewUnit');
+	reads({ ...answer([], []), summary: { money: {} } });
+
+	renderLanding();
+
+	expect(await screen.findByText(en.dashboard.nothingPermitted.title)).toBeTruthy();
+	expect(screen.getByText(en.dashboard.nothingPermitted.description)).toBeTruthy();
+	expect(notPermitted()).not.toBeNull();
+	expect(screen.queryByText(en.dashboard.empty.title)).toBeNull();
+});
+
+test('a reader who may view any of the screen is not told it holds nothing for them', async () => {
+	holdEveryFlagBut('viewContract', 'viewUnit');
+	reads({ ...answer([], []), summary: { money: { collected: 800 } } });
+
+	renderLanding();
+	await screen.findByText('collected');
+
+	expect(notPermitted()).toBeNull();
+});
+
 /**
  * THE MONEY CARD IS A DOOR ONLY WHERE THE READER MAY GO
  *

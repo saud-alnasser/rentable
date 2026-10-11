@@ -443,6 +443,19 @@
 					{/if}
 				</Loading>
 			{/if}
+
+			<!-- a reader who may view none of what the screen is made of is told so in its middle,
+			     rather than left at a blank that reads as a screen that broke. Only under a read
+			     that answered, as every empty state is ([[rules/interface]], *Not permitted*, under
+			     *Empty*; ticket 32 of effort 861). -->
+			{#if !viewsContracts && !holdsMoney && !occupancy}
+				<Empty
+					kind="not-permitted"
+					title={$LL.dashboard.nothingPermitted.title()}
+					description={$LL.dashboard.nothingPermitted.description()}
+					class="flex-1"
+				/>
+			{/if}
 		{/if}
 	</Loading>
 </div>

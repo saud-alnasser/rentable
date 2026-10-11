@@ -31,6 +31,14 @@ export const dashboard = {
 		returned: 'returned'
 	},
 
+	// the landing screen for a reader whose role may view none of what it is made of, said rather
+	// than left blank (effort 861, after the owner looked at the staged empty landing).
+	nothingPermitted: {
+		description:
+			'it shows contracts, payments and units, and your role can view none of them. whoever manages roles can change that.',
+		title: 'nothing on this screen is open to your role.'
+	},
+
 	sections: {
 		alsoEnding: 'also ending',
 		contractCount: '{count|number} {{contract|contracts}}',

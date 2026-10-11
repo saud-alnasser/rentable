@@ -252,6 +252,11 @@ no outstanding figure, no section, no ending-soon header and not *nothing to cha
 [[efforts/861-the-app-never-shows-something-false/spec]], requirement 2.* Nor is a figure a door
 to a page the reader may not open: the money card links to the contracts only where the reader may
 view contracts, and elsewhere draws the same figures with no link. *Ticket 16 of the same effort.*
+**Nor is a screen left blank for a reader who may view none of it.** Where the read answered and
+the reader may view none of contracts, payments and units, so neither the band nor a section has
+anything to draw, the screen says so in the middle (*Not permitted*, under *Empty*): what it shows,
+that the reader's role views none of it, and that whoever manages the organization's roles can
+change that. *Ticket 32 of the same effort, after the owner looked at the staged empty landing.*
 
 ### Settings section
 
@@ -1394,9 +1399,9 @@ fast local read from flashing a skeleton for a frame.*
 
 **A region with nothing to show draws `packages/design/src/lib/block/empty.svelte`, and nothing
 else**: a title, an optional line under it, and one act beneath both. The block names no concept,
-and every sentence of the first three situations is the caller's; the fourth, a failed read, reads
-its words from the string contract, since it says the same wherever a read fails. It says which of
-four situations it is, on `data-empty`, and the four never read the same:
+and every sentence is the caller's but a failed read's, which reads its words from the string
+contract, since it says the same wherever a read fails. It says which of
+five situations it is, on `data-empty`, and the five never read the same:
 
 - **Nothing here yet.** The set holds nothing, and the title says what it will hold in the
   concept's own words (*no tenants yet*), with a line saying where the records come from. Its act
@@ -1446,6 +1451,12 @@ four situations it is, on `data-empty`, and the four never read the same:
   again* is then `aria-busy`, its glyph turns as the update check's does and holds still for a
   reader who asked for less motion, a second press asks for nothing, and it is never disabled, so
   it keeps the focus it had. *Ticket 15 of the same effort.*
+- **Not permitted.** What belongs here is all of a kind the reader's role may not view, so nothing
+  is drawn of it, and a blank would read as a screen that broke. The title says the region holds
+  nothing open to the reader's role, the line says what it shows and who can open it to them, and
+  there is no act, since nothing the reader can press changes a role. It is said only under a read
+  that answered. Today the landing screen draws it (*Landing screen*). *Ticket 32 of
+  [[efforts/861-the-app-never-shows-something-false/spec]].*
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
 Nor does the bar above a set that holds nothing yet count it: `list-toolbar.svelte` draws its

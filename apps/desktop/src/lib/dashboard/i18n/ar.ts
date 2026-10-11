@@ -30,6 +30,12 @@ export const dashboard = {
 		returned: 'المُعاد'
 	},
 
+	nothingPermitted: {
+		description:
+			'تعرض هذه الشاشة العقود والمدفوعات والوحدات، ودورك لا يتيح عرض أيٍّ منها. يمكن لمن يدير الأدوار تغيير ذلك.',
+		title: 'لا شيء في هذه الشاشة متاح لدورك.'
+	},
+
 	sections: {
 		alsoEnding: 'ينتهي أيضاً',
 		contractCount: '{count|number} عقد',
