@@ -95,8 +95,8 @@ test('a success toast carries no close control, since it leaves on its own', asy
 // stylesheet sets on the toaster and reads as the physical left (`start`) and right (`end`); the
 // toaster's style is what moves it.
 test.each([
-	['ltr', 'right', 'unset', '0', 'translate(35%, -35%)'],
-	['rtl', 'left', '0', 'unset', 'translate(-35%, -35%)']
+	['ltr', 'right', 'auto', '0', 'translate(35%, -35%)'],
+	['rtl', 'left', '0', 'auto', 'translate(-35%, -35%)']
 ] as const)(
 	'in a %s reading the close control sits at the top %s corner, where the reading ends',
 	async (direction, _corner, left, right, transform) => {

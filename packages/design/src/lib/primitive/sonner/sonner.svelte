@@ -12,11 +12,12 @@
 
 	const contract = useDesignContract();
 
-	// sonner reads `start` and `end` as the physical left and right.
+	// sonner reads `start` and `end` as the physical left and right. `auto` frees a side: `unset` on a
+	// custom property inherits, and sonner sets both sides on `<html>` too.
 	const closeCorner = $derived(
 		contract.direction === 'rtl'
-			? '--toast-close-button-start: 0; --toast-close-button-end: unset; --toast-close-button-transform: translate(-35%, -35%);'
-			: '--toast-close-button-start: unset; --toast-close-button-end: 0; --toast-close-button-transform: translate(35%, -35%);'
+			? '--toast-close-button-start: 0; --toast-close-button-end: auto; --toast-close-button-transform: translate(-35%, -35%);'
+			: '--toast-close-button-start: auto; --toast-close-button-end: 0; --toast-close-button-transform: translate(35%, -35%);'
 	);
 </script>
 
