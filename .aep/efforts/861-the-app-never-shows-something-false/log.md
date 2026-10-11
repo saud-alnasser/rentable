@@ -30,6 +30,11 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 21 a-failed-members-read-on-the-workspace-page-says-it-failed 2/2
 [x] 23 an-edit-keeps-a-renewal-after-what-it-renews 3/3
 [x] 22 the-band-never-shows-another-periods-figures 2/2
+[x] 25 the-interface-runs-staged-on-mock-data 6/6
+[x] 26 a-staged-state-is-stepped-through-on-a-bar 4/4
+[x] 29 a-date-picker-reads-in-arabic-and-a-chosen-day-is-round 2/2
+[ ] 27 every-effort-hands-its-on-screen-checks-over-staged 0/3
+[ ] 28 this-efforts-on-screen-checks-are-staged 0/3
 
 ## Rounds
 
@@ -45,6 +50,8 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - 05: the human chose to leave out a figure the member may not view (no card, no ring unless due and collected are both known, no nothing-to-chase without view-contracts), over keeping zeros or a marked placeholder
 - seam after 11: the ticket 09 section comment in contract/tests/router.test.ts still says nothing writes the link
 - converge: rules/interface Form surface could name seed (schema forms) and isDirty (the others) as how a form reports its changes
+- staging: the layers rule leaves prototype/stage/ out as it leaves tests/ out; the database-client rule is kept, the stage telling the plugin's two commands apart by their arguments
+- staging found 29 (calendar header and edge day) in ticket 01's state; fixed in the effort
 - converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
 
 ## Needs you
