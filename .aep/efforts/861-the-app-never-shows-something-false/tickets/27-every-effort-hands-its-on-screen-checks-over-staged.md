@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [26]
 ---
 
@@ -15,9 +15,9 @@ A project rule makes staging part of handing over an effort whose `## Needs you`
 
 Traces requirement 12 and criterion 12.
 
-- [ ] A rule under `.aep/rules/` with a `use-when` that fires when an effort's `## Needs you` holds an on-screen check, requiring its states in a `_stage` worktree, each entered and screenshotted in both languages and both appearances, before the owner gets the window and the list.
-- [ ] A reference under `.aep/references/` on launching staging, writing a state, and what it cannot show.
-- [ ] [[rules/module-layout]] *Prototype code* and [[contexts/repository]] name the stage machinery; `node .aep/scripts/index.mjs && node .aep/scripts/aep.mjs check` passes.
+- [x] A rule under `.aep/rules/` with a `use-when` that fires when an effort's `## Needs you` holds an on-screen check, requiring its states in a `_stage` worktree, each entered and screenshotted in both languages and both appearances, before the owner gets the window and the list. Verified: `.aep/rules/staging.md` fires on `an effort's ## Needs you holds a check the owner makes by looking at the interface, or an effort holding one is handed over`; it requires the states untracked in `.aep/worktrees/<effort>/_stage`, every one shot by `pnpm stage:shots` in both languages and appearances and looked at, defects fixed, `evidence/staging/needs-you.md` written, then `pnpm stage` and the list. `pnpm stage:shots` (6f9fa690) makes the shooting one command; a broken state fails it with exit 1.
+- [x] A reference under `.aep/references/` on launching staging, writing a state, and what it cannot show. Verified: `.aep/references/stage.md`: the two commands, how the shell is stood in for (and that a new `tauri.ts` joins `ADAPTERS`), the mock records, a state's shape, the screen helpers, seven gotchas met in this effort, and *What it cannot show*.
+- [x] [[rules/module-layout]] *Prototype code* and [[contexts/repository]] name the stage machinery; `node .aep/scripts/index.mjs && node .aep/scripts/aep.mjs check` passes. Verified: *Prototype code* gains *Staging is the other machinery there, and it is committed*; the repository context's `prototype/` row and `references/pnpm.md`'s run list name `stage/`, `pnpm stage` and `pnpm stage:shots`; index and check: 0 failures.
 
 ## Relevant areas
 

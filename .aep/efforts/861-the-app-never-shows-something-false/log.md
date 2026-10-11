@@ -33,7 +33,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 25 the-interface-runs-staged-on-mock-data 6/6
 [x] 26 a-staged-state-is-stepped-through-on-a-bar 4/4
 [x] 29 a-date-picker-reads-in-arabic-and-a-chosen-day-is-round 2/2
-[ ] 27 every-effort-hands-its-on-screen-checks-over-staged 0/3
+[x] 27 every-effort-hands-its-on-screen-checks-over-staged 3/3
 [ ] 28 this-efforts-on-screen-checks-are-staged 0/3
 
 ## Rounds

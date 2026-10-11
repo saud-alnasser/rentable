@@ -28,6 +28,7 @@ Start at [[protocol]].
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
 | [[rules/migrations]] | adding or changing a workspace migration or an organization's change of format | packages/workspace-migrations/**, apps/desktop/tauri/src/upgrade/format/** | — |
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/** | — |
+| [[rules/staging]] | an effort's `## Needs you` holds a check the owner makes by looking at the interface, or an effort holding one is handed over | — | — |
 | [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/testing/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | — | — |
@@ -63,6 +64,7 @@ Start at [[protocol]].
 | [[references/pnpm]] | installing dependencies or running any repository script | — |
 | [[references/prettier]] | formatting, or a CI formatting failure has to be reproduced locally | — |
 | [[references/shadcn-svelte]] | adding or regenerating a design primitive | — |
+| [[references/stage]] | launching staging, writing a staged state, or photographing one | — |
 | [[references/svelte]] | building or running this Svelte or SvelteKit application | — |
 | [[references/tauri]] | building, running, or configuring the desktop shell | — |
 | [[references/turborepo]] | running a task across this monorepo's packages, or explaining why one was skipped | — |
@@ -690,6 +692,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/861-the-app-never-shows-something-false/tickets/24-a-toast-reads-on-its-wash-in-both-appearances]] fix(design): a toast reads on its wash in both appearances | 861-the-app-never-shows-something-false | resolved | — |
 | [[efforts/861-the-app-never-shows-something-false/tickets/25-the-interface-runs-staged-on-mock-data]] feat(desktop): the interface runs staged on mock data, with no shell behind it | 861-the-app-never-shows-something-false | resolved | — |
 | [[efforts/861-the-app-never-shows-something-false/tickets/26-a-staged-state-is-stepped-through-on-a-bar]] feat(desktop): a staged state is described once and stepped through on a bar | 861-the-app-never-shows-something-false | resolved | 25 |
-| [[efforts/861-the-app-never-shows-something-false/tickets/27-every-effort-hands-its-on-screen-checks-over-staged]] docs(aep): every effort hands its on-screen checks over staged | 861-the-app-never-shows-something-false | open | 26 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/27-every-effort-hands-its-on-screen-checks-over-staged]] docs(aep): every effort hands its on-screen checks over staged | 861-the-app-never-shows-something-false | resolved | 26 |
 | [[efforts/861-the-app-never-shows-something-false/tickets/28-this-efforts-on-screen-checks-are-staged]] docs(861-the-app-never-shows-something-false): this effort's on-screen checks are staged | 861-the-app-never-shows-something-false | open | 27 |
 | [[efforts/861-the-app-never-shows-something-false/tickets/29-a-date-picker-reads-in-arabic-and-a-chosen-day-is-round]] fix(design): a date picker names each weekday in Arabic, and a chosen day is round at the edges | 861-the-app-never-shows-something-false | resolved | — |
