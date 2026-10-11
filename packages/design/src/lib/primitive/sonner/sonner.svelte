@@ -12,6 +12,14 @@
 
 	const contract = useDesignContract();
 
+	// what dismisses a layer is a `pointerdown` reaching the document from outside it.
+	const keepToSelf = (node: HTMLElement) => {
+		const keep = (event: PointerEvent) => event.stopPropagation();
+		node.addEventListener('pointerdown', keep);
+
+		return () => node.removeEventListener('pointerdown', keep);
+	};
+
 	// sonner reads `start` and `end` as the physical left and right. `auto` frees a side: `unset` on a
 	// custom property inherits, and sonner sets both sides on `<html>` too.
 	const closeCorner = $derived(
@@ -56,33 +64,43 @@
 	close stands: the right in English, the left in Arabic. sonner puts it at the start; the
 	toaster's style moves it. *Added by effort 861, after the owner looked at the staged error
 	toast.*
+
+	**A toast is pressable over an open dialog, and pressing it leaves the dialog open.** A failed
+	save raises its toast while the form is still open, and a modal dialog turns pointer events off
+	on `<body>`, which the toaster inherited: the X drew on top and every press fell through to the
+	form. The toaster takes its pointer events back, and keeps its presses from the document, where
+	the dialog would read them as leaving it and close or ask *discard*. *Added by effort 861, after
+	the owner pressed the staged error toast's X and nothing happened.*
 -->
-<Sonner
-	class="toaster group"
-	position={contract.direction === 'rtl' ? 'bottom-left' : 'bottom-right'}
-	dir={contract.direction}
-	closeButtonAriaLabel={contract.strings.close}
-	richColors
-	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);
+
+<div class="contents" {@attach keepToSelf}>
+	<Sonner
+		class="toaster group pointer-events-auto"
+		position={contract.direction === 'rtl' ? 'bottom-left' : 'bottom-right'}
+		dir={contract.direction}
+		closeButtonAriaLabel={contract.strings.close}
+		richColors
+		style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);
 	       --success-bg: color-mix(in oklab, var(--success) 8%, var(--popover)); --success-border: color-mix(in oklab, var(--success) 30%, transparent); --success-text: var(--success);
 	       --error-bg: color-mix(in oklab, var(--destructive) 8%, var(--popover)); --error-border: color-mix(in oklab, var(--destructive) 30%, transparent); --error-text: var(--destructive);
 	       --warning-bg: color-mix(in oklab, var(--warning) 8%, var(--popover)); --warning-border: color-mix(in oklab, var(--warning) 30%, transparent); --warning-text: var(--warning);
 	       --info-bg: color-mix(in oklab, var(--info) 8%, var(--popover)); --info-border: color-mix(in oklab, var(--info) 30%, transparent); --info-text: var(--info);
 	       {closeCorner}"
-	{...restProps}
-	>{#snippet loadingIcon()}
-		<Loader2Icon class="size-4 animate-spin" />
-	{/snippet}
-	{#snippet successIcon()}
-		<CircleCheckIcon class="size-4" />
-	{/snippet}
-	{#snippet errorIcon()}
-		<OctagonXIcon class="size-4" />
-	{/snippet}
-	{#snippet infoIcon()}
-		<InfoIcon class="size-4" />
-	{/snippet}
-	{#snippet warningIcon()}
-		<TriangleAlertIcon class="size-4" />
-	{/snippet}
-</Sonner>
+		{...restProps}
+		>{#snippet loadingIcon()}
+			<Loader2Icon class="size-4 animate-spin" />
+		{/snippet}
+		{#snippet successIcon()}
+			<CircleCheckIcon class="size-4" />
+		{/snippet}
+		{#snippet errorIcon()}
+			<OctagonXIcon class="size-4" />
+		{/snippet}
+		{#snippet infoIcon()}
+			<InfoIcon class="size-4" />
+		{/snippet}
+		{#snippet warningIcon()}
+			<TriangleAlertIcon class="size-4" />
+		{/snippet}
+	</Sonner>
+</div>

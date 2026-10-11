@@ -108,3 +108,20 @@ test.each([
 		expect(property('--toast-close-button-transform')).toBe(transform);
 	}
 );
+
+// an open dialog closes, or asks first, on a `pointerdown` that reaches the document from outside
+// it, and a failed save raises its toast while the form is still open: pressing the toast is not
+// leaving the form.
+test('pressing a toast does not reach the document, so an open form stays open', async () => {
+	const toaster = await raised('ltr', () => notify.error('the tenant could not be saved.'));
+	const close = toaster?.querySelector<HTMLElement>('[data-close-button]');
+	let reached = false;
+	const listener = () => (reached = true);
+	document.addEventListener('pointerdown', listener);
+
+	close?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+	document.removeEventListener('pointerdown', listener);
+
+	expect(close).not.toBeNull();
+	expect(reached).toBe(false);
+});
