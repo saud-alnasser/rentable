@@ -27,6 +27,11 @@
 			? '--toast-close-button-start: 0; --toast-close-button-end: auto; --toast-close-button-transform: translate(-35%, -35%);'
 			: '--toast-close-button-start: auto; --toast-close-button-end: 0; --toast-close-button-transform: translate(35%, -35%);'
 	);
+
+	// sonner draws its button as a chip in the reverse of the popover, whatever the toast's tone;
+	// these win over its styles, which sit outside every layer.
+	const action =
+		'h-7! rounded-2xl! border! border-current/30! bg-transparent! px-3! text-xs! font-semibold! text-current! transition-[border-color,box-shadow]! duration-base! hover:border-current! focus-visible:ring-3! focus-visible:ring-current/30! active:translate-y-px';
 </script>
 
 <!--
@@ -71,6 +76,12 @@
 	form. The toaster takes its pointer events back, and keeps its presses from the document, where
 	the dialog would read them as leaving it and close or ask *discard*. *Added by effort 861, after
 	the owner pressed the staged error toast's X and nothing happened.*
+
+	**A toast's action is drawn in the toast's tone**: its label and a hairline in the tone, on no
+	fill of its own, so undo on a success toast reads green on the green wash and is plainly a
+	button. With no fill the label sits on the wash its text is held to 4.5:1 on, and hovering
+	firms the outline rather than tinting the ground under it, which would take the contrast below
+	AA. *Added by effort 861, after the owner found the undo and redo buttons plain.*
 -->
 
 <div class="contents" {@attach keepToSelf}>
@@ -80,6 +91,7 @@
 		dir={contract.direction}
 		closeButtonAriaLabel={contract.strings.close}
 		richColors
+		toastOptions={{ classes: { actionButton: action, cancelButton: action } }}
 		style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);
 	       --success-bg: color-mix(in oklab, var(--success) 8%, var(--popover)); --success-border: color-mix(in oklab, var(--success) 30%, transparent); --success-text: var(--success);
 	       --error-bg: color-mix(in oklab, var(--destructive) 8%, var(--popover)); --error-border: color-mix(in oklab, var(--destructive) 30%, transparent); --error-text: var(--destructive);

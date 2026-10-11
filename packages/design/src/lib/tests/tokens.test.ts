@@ -344,6 +344,23 @@ describe('a toned toast', () => {
 	}
 });
 
+describe("a toast's action", () => {
+	it("draws its label in the toast's text on no fill, so it reads on the wash as the text does", () => {
+		const action = /const action =\s*'([^']+)'/.exec(sonner);
+
+		assert.ok(action, 'the toaster names the classes its action is drawn with');
+
+		const classes = action[1].split(/\s+/);
+
+		assert.ok(classes.includes('text-current!'), 'the label is the toast text');
+		assert.ok(classes.includes('bg-transparent!'), 'the button has no fill of its own');
+		assert.ok(
+			!classes.some((name) => /^(hover|active|focus-visible):bg-/.test(name)),
+			'no state paints a ground under the label'
+		);
+	});
+});
+
 describe('a disabled button', () => {
 	it('is dimmed by the disabled pair rather than by opacity', () => {
 		for (const state of ['disabled', 'aria-disabled']) {
