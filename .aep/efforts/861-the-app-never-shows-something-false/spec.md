@@ -119,18 +119,21 @@ thrown away without the reader choosing to.
     submit never asks.
 
 11. **The owner sees each on-screen state without causing it, and without real data.** A staging
-    mode runs the desktop frontend's real routes and components with no Rust process behind them,
-    over an in-memory workspace database built from the real migrations and seeded with mock
-    records shaped like real ones (Arabic and English names; contracts active, ending, ended,
-    renewed, overdue and paid), and a fake host the type checker holds to the real host's port.
-    A staged state names its route, the member and what they may do, any change to the records or
-    to what the shell answers, and any steps taken on screen to reach it, and is built fresh on
-    entry. A bar drawn only in staging steps through the states, names each and what to look at,
-    and switches language and appearance. One command opens it in its own window, from any
-    checkout or worktree. Nothing of it reaches a production build. *The human's call,
-    2026-10-09: "make sure that this way of showing me and putting in the right state doesn't
-    affect real data meaning you will use mock data", and "amend it to this effort and use what
-    you built to build need the owner ui states in this effort as a test".*
+    mode runs the desktop frontend's real routes and components with nothing behind them reaching
+    the owner's data, over an in-memory workspace database built from the real migrations and seeded
+    with mock records shaped like real ones (Arabic and English names; contracts active, ending,
+    ended, renewed, overdue and paid), and a fake host the type checker holds to the real host's
+    port. A staged state names its route, the member and what they may do, any change to the records
+    or to what the shell answers, and any steps taken on screen to reach it, and is built fresh on
+    entry. A bar drawn only in staging steps through the states, names each and what to look at, and
+    switches language and appearance. One command opens it in the app's own desktop window, from
+    development only and with no entry code changed, from any checkout or worktree; the shell it
+    opens in runs under an identifier of its own, and only the window's own commands reach it.
+    Nothing of it reaches a production build. *The human's call, 2026-10-09: "make sure that this
+    way of showing me and putting in the right state doesn't affect real data meaning you will use
+    mock data", and "amend it to this effort and use what you built to build need the owner ui
+    states in this effort as a test"; and, on looking, "why not open a desktop window for it ...
+    only in dev while developing, so it actually appears like how it would in the app".*
 12. **Every effort hands its on-screen checks over staged.** A project rule makes staging part of
     handing over an effort whose `## Needs you` holds an on-screen check: its states are written
     on a throwaway branch and the owner is given the window and the list. A reference says how
@@ -173,17 +176,18 @@ thrown away without the reader choosing to.
     editing* leaves the values in place; *discard* closes; an untouched form closes at once; a
     submit closes without asking. Component tests cover the form surface.
 
-11. With staging running: no Rust process from this repository runs; the window's network log
-    holds no request to any host but the local dev server; a record created in it is gone on
-    entering another state; the developer database and `%APPDATA%/com.rentable.app` are
-    unchanged by the run. `pnpm check` fails when the fake host stops satisfying the real port,
-    and a shell call the fake does not answer fails naming the command. Every list, record kind
-    and the dashboard are filled on entry, in Arabic under Arabic. A state that changes records,
-    permissions and the shell's answers and clicks through the interface lands on its screen,
-    and stepping away and back shows it again unchanged. The bar steps both ways, shows `n/N`,
-    the label and what to look at, and redraws the same state in the other language or
-    appearance. One command from a worktree opens the window at the app's size. A production
-    build contains no staging module, mock record or state.
+11. With staging running in a browser window: no Rust process from this repository runs; in the
+    desktop window, the only one is the shell under `com.rentable.stage`, whose directories are
+    removed when it closes. The window's network log holds no request to any host but the local dev
+    server; a record created in it is gone on entering another state; the developer database and
+    `%APPDATA%/com.rentable.app` are unchanged by the run. `pnpm check` fails when the fake host
+    stops satisfying the real port, and a shell call the fake does not answer fails naming the
+    command. Every list, record kind and the dashboard are filled on entry, in Arabic under Arabic.
+    A state that changes records, permissions and the shell's answers and clicks through the
+    interface lands on its screen, and stepping away and back shows it again unchanged. The bar
+    steps both ways, shows `n/N`, the label and what to look at, and redraws the same state in the
+    other language or appearance. One command from a worktree opens the window at the app's size. A
+    production build contains no staging module, mock record or state.
 12. The rule is under `.aep/rules/` and the reference under `.aep/references/`, both indexed and
     `aep.mjs check` passes. Each of this effort's on-screen checks under `## Needs you` is a
     state, every state was entered and screenshotted in both languages and both appearances,
