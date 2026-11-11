@@ -35,7 +35,7 @@
 		"svelte-sonner": "^1.2.1",
 		"sveltekit-superforms": "^2.30.2",
 		"tailwind-merge": "^3.6.0",
-		"tailwind-variants": "^3.3.1"
+		"tailwind-variants": "^4.0.0"
 	},
 	"devDependencies": {
 		"@rentable/testing": "workspace:*",
